@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   User, 
@@ -12,15 +12,28 @@ import {
   MessageSquare,
   UserCheck,
   Megaphone,
-  AlertCircle
+  AlertCircle,
+  RefreshCw
 } from 'lucide-react';
 import FormInput from './FormInput';
 import SubmitButton from './SubmitButton';
 
+// Utility to generate unique Customer ID like LD0001
+const generateNextCustomerId = () => {
+  const currentCount = parseInt(localStorage.getItem('customer_id_counter') || '1', 10);
+  const formattedNumber = String(currentCount).padStart(4, '0');
+  return `LD${formattedNumber}`;
+};
+
+const incrementCustomerIdCounter = () => {
+  const currentCount = parseInt(localStorage.getItem('customer_id_counter') || '1', 10);
+  localStorage.setItem('customer_id_counter', (currentCount + 1).toString());
+};
+
 const getInitialFormData = () => ({
   date: new Date().toISOString().split('T')[0],
   createdBy: '',
-  customerId: '',
+  customerId: generateNextCustomerId(),
   customerName: '',
   businessName: '',
   contactNumber: '',
@@ -36,12 +49,24 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Validation helper: optional validation (only validate format if value is provided)
+  // Ensure customerId is generated on mount if empty
+  useEffect(() => {
+    if (!formData.customerId) {
+      setFormData((prev) => ({ ...prev, customerId: generateNextCustomerId() }));
+    }
+  }, []);
+
+  const handleRegenerateId = () => {
+    const newId = generateNextCustomerId();
+    setFormData((prev) => ({ ...prev, customerId: newId }));
+  };
+
+  // Validation helper: optional validation
   const validateField = (name, value) => {
     let error = '';
     const strVal = (value || '').toString().trim();
 
-    if (!strVal) return ''; // All fields are optional
+    if (!strVal) return '';
 
     switch (name) {
       case 'contactNumber':
@@ -96,7 +121,9 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
 
     if (validateAll()) {
       onSubmit(formData, () => {
-        // Reset form callback
+        // Increment the unique Customer ID counter for the next entry
+        incrementCustomerIdCounter();
+        // Reset form with new Customer ID
         setFormData(getInitialFormData());
         setErrors({});
         setTouched({});
@@ -158,17 +185,33 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
               error={touched.createdBy ? errors.createdBy : ''}
             />
 
-            {/* Row 2: Customer ID & Customer Name */}
-            <FormInput
-              id="customerId"
-              name="customerId"
-              label="Customer ID"
-              placeholder="e.g. CUST-1092"
-              value={formData.customerId}
-              onChange={handleChange}
-              icon={Hash}
-              error={touched.customerId ? errors.customerId : ''}
-            />
+            {/* Row 2: Customer ID (Auto Generated Unique ID) & Customer Name */}
+            <div className="flex flex-col space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label htmlFor="customerId" className="text-xs font-semibold text-slate-700">
+                  Customer ID
+                </label>
+                <button
+                  type="button"
+                  onClick={handleRegenerateId}
+                  className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800 flex items-center space-x-1"
+                  title="Generate ID"
+                >
+                  <RefreshCw className="w-3 h-3 mr-0.5" /> Auto-Generated
+                </button>
+              </div>
+              <FormInput
+                id="customerId"
+                name="customerId"
+                label=""
+                placeholder="e.g. LD0001"
+                value={formData.customerId}
+                onChange={handleChange}
+                icon={Hash}
+                helperText="Unique ID automatically assigned (e.g. LD0001)"
+                error={touched.customerId ? errors.customerId : ''}
+              />
+            </div>
 
             <FormInput
               id="customerName"

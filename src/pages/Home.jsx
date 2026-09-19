@@ -75,33 +75,6 @@ export default function Home() {
             onOpenSettings={() => setIsSettingsOpen(true)}
           />
         </div>
-
-        {/* Value Proposition Badges */}
-        <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
-            <Zap className="w-5 h-5 text-indigo-500 shrink-0" />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-900">Real-time Calculation</p>
-              <p className="text-slate-500">Instant total amount computing</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
-            <ShieldCheck className="w-5 h-5 text-indigo-500 shrink-0" />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-900">Secure Frontend</p>
-              <p className="text-slate-500">Zero sensitive credentials stored</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
-            <Sparkles className="w-5 h-5 text-indigo-500 shrink-0" />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-900">Google Sheet Sync</p>
-              <p className="text-slate-500">Direct Apps Script connection</p>
-            </div>
-          </div>
-        </div>
       </main>
 
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">

@@ -19,7 +19,7 @@
  * 3. Open Extensions -> Apps Script
  * 4. Replace code in Code.gs with this snippet and save (Ctrl+S)
  * 5. Click "Deploy" -> "New deployment"
- * 6. Select "Web app" (Click gear icon next to Select type)
+ * 6. Select "Web app"
  * 7. Description: "Campaign Form Service"
  * 8. Execute as: "Me"
  * 9. Who has access: "Anyone"  <-- CRITICAL for frontend access
@@ -62,16 +62,23 @@ function doPost(e) {
       data = e.parameter;
     }
 
+    // Auto-generate Customer ID if empty based on current row index
+    var customerId = data.customerId;
+    if (!customerId || !customerId.toString().trim()) {
+      var nextRowIndex = sheet.getLastRow();
+      customerId = 'LD' + ('0000' + nextRowIndex).slice(-4);
+    }
+
     var rowData = [
       data.date || new Date().toISOString().split('T')[0],
       data.createdBy || '',
-      data.customerId || '',
+      customerId,
       data.customerName || '',
       data.businessName || '',
       data.contactNumber || '',
-      data.planAmountPerDay ? Number(data.planAmountPerDay) : 0,
-      data.numberOfDays ? Number(data.numberOfDays) : 0,
-      data.totalAmount ? Number(data.totalAmount) : 0,
+      data.planAmountPerDay ? Number(data.planAmountPerDay) : '',
+      data.numberOfDays ? Number(data.numberOfDays) : '',
+      data.totalAmount ? Number(data.totalAmount) : '',
       data.adsLocations || '',
       data.businessWhatsAppNumber || ''
     ];
