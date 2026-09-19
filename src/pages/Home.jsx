@@ -51,11 +51,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
-      <Header
-        webAppUrl={webAppUrl}
-        onOpenSettings={() => setIsSettingsOpen(true)}
-      />
-
       <main className="flex-1 max-w-5xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Page Banner / Hero Intro */}
         <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
