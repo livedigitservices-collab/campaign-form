@@ -42,7 +42,6 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
         };
       }
     } else {
-      // Fallback for non-200 responses
       return {
         success: false,
         message: 'Unable to submit the details. Server returned status: ' + response.status,
@@ -51,8 +50,6 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
   } catch (error) {
     console.error('Google Sheets submission error:', error);
     
-    // In case Google Apps Script CORS redirect causes a transparent response or network error,
-    // test with fallback no-cors request if fetch threw network error
     try {
       await fetch(cleanUrl, {
         method: 'POST',
@@ -62,7 +59,6 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
         body: JSON.stringify(formData),
         mode: 'no-cors',
       });
-      // no-cors fetch completed without throwing, consider it delivered
       return {
         success: true,
         message: 'Details submitted successfully.',
@@ -71,5 +67,51 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
       console.error('Fallback submission error:', fallbackError);
       throw new Error('Unable to submit the details. Please try again.');
     }
+  }
+}
+
+/**
+ * Fetches existing records and Created By list from Google Sheets via Google Apps Script Web App.
+ * 
+ * @param {string} webAppUrl 
+ * @returns {Promise<{success: boolean, createdByList: string[], records: Array, error?: string}>}
+ */
+export async function fetchSheetData(webAppUrl) {
+  if (!webAppUrl || typeof webAppUrl !== 'string' || !webAppUrl.trim()) {
+    return { success: false, createdByList: [], records: [], error: 'Web App URL not configured' };
+  }
+
+  const cleanUrl = webAppUrl.trim();
+
+  try {
+    const response = await fetch(cleanUrl, {
+      method: 'GET',
+      redirect: 'follow',
+    });
+
+    if (response.ok) {
+      const text = await response.text();
+      let data = {};
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        console.error('Failed to parse JSON response:', text);
+        return { success: false, createdByList: [], records: [], error: 'Invalid JSON response from Google Apps Script' };
+      }
+
+      if (data.status === 'success') {
+        return {
+          success: true,
+          createdByList: data.createdByList || [],
+          records: data.records || [],
+        };
+      } else {
+        return { success: false, createdByList: [], records: [], error: data.message || 'Script error' };
+      }
+    }
+    return { success: false, createdByList: [], records: [], error: `Server returned status ${response.status}` };
+  } catch (err) {
+    console.error('Error fetching sheet data:', err);
+    return { success: false, createdByList: [], records: [], error: err.message || 'Network error' };
   }
 }

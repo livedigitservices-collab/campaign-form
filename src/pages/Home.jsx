@@ -73,6 +73,7 @@ export default function Home() {
             isSubmitting={isSubmitting}
             isUrlConfigured={Boolean(webAppUrl && webAppUrl.trim())}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            webAppUrl={webAppUrl}
           />
         </div>
       </main>
