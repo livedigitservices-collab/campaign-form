@@ -22,7 +22,7 @@ import SubmitButton from './SubmitButton';
 const generateNextCustomerId = () => {
   const currentCount = parseInt(localStorage.getItem('customer_id_counter') || '1', 10);
   const formattedNumber = String(currentCount).padStart(4, '0');
-  return `LD${formattedNumber}`;
+  return `ADB${formattedNumber}`;
 };
 
 const incrementCustomerIdCounter = () => {
