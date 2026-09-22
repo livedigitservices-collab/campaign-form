@@ -151,7 +151,7 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
+      <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6 sm:space-y-8">
         {/* Customer Details Section */}
         <section className="space-y-4">
           <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-100">
@@ -163,7 +163,7 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {/* Row 1: Date & Created By */}
             <FormInput
               id="date"
@@ -265,7 +265,7 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {/* Row 1: Plan Amount Per Day & Number of Days */}
             <FormInput
               id="planAmountPerDay"
@@ -322,7 +322,7 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
             />
 
             {/* Row 3: Business WhatsApp Number */}
-            <div className="md:col-span-2">
+            <div className="sm:col-span-2">
               <FormInput
                 id="businessWhatsAppNumber"
                 name="businessWhatsAppNumber"

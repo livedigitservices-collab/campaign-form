@@ -92,8 +92,9 @@ export default function FormInput({
             {Array.isArray(options) && options.map((opt, idx) => {
               const val = typeof opt === 'object' ? opt.value : opt;
               const lbl = typeof opt === 'object' ? opt.label : opt;
+              const isDisabled = typeof opt === 'object' ? Boolean(opt.disabled) : false;
               return (
-                <option key={idx} value={val}>
+                <option key={idx} value={val} disabled={isDisabled}>
                   {lbl}
                 </option>
               );

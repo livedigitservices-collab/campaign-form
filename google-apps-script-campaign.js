@@ -98,6 +98,28 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', createdByList: [], records: [] })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    var headers = values[0].map(function(h) { return h ? h.toString().trim().toLowerCase() : ''; });
+
+    var findIdx = function(possibleNames, defaultIdx) {
+      for (var k = 0; k < possibleNames.length; k++) {
+        var idx = headers.indexOf(possibleNames[k]);
+        if (idx !== -1) return idx;
+      }
+      return defaultIdx;
+    };
+
+    var dateIdx = findIdx(['date'], 0);
+    var createdByIdx = findIdx(['created by', 'logged by', 'staff', 'staff name'], 1);
+    var customerIdIdx = findIdx(['customer id', 'client id', 'id'], 2);
+    var customerNameIdx = findIdx(['customer name', 'client name', 'name'], 3);
+    var businessNameIdx = findIdx(['business name', 'business'], 4);
+    var contactNumberIdx = findIdx(['contact number', 'phone number', 'phone', 'contact'], 5);
+    var planAmountIdx = findIdx(['plan amount per day', 'plan amount'], 6);
+    var noDaysIdx = findIdx(['no. of days', 'number of days', 'days'], 7);
+    var totalAmountIdx = findIdx(['total amount'], 8);
+    var adsLocationsIdx = findIdx(['ads locations', 'locations'], 9);
+    var whatsAppIdx = findIdx(['business whatsapp number', 'whatsapp'], 10);
+
     var records = [];
     var createdByMap = {};
 
@@ -105,25 +127,28 @@ function doGet(e) {
       var row = values[i];
       if (!row.some(function(c) { return c !== ''; })) continue;
 
-      var getStr = function(idx) { return (row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : ''; };
-      var createdBy = getStr(1);
-      var customerName = getStr(3) || getStr(4) || ('Client #' + i);
+      var getStr = function(idx) { 
+        return (idx !== -1 && row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : ''; 
+      };
 
-      records.push({
-        date: getStr(0) || new Date().toISOString().split('T')[0],
-        createdBy: createdBy,
-        customerId: getStr(2) || ('LD' + ('0000' + i).slice(-4)),
-        customerName: customerName,
-        businessName: getStr(4),
-        contactNumber: getStr(5),
-        planAmountPerDay: getStr(6),
-        numberOfDays: getStr(7),
-        totalAmount: getStr(8),
-        adsLocations: getStr(9),
-        businessWhatsAppNumber: getStr(10)
-      });
+      var createdBy = getStr(createdByIdx);
+      var customerName = getStr(customerNameIdx) || getStr(businessNameIdx) || ('Client #' + i);
 
       if (createdBy) createdByMap[createdBy] = true;
+
+      records.push({
+        date: getStr(dateIdx) || new Date().toISOString().split('T')[0],
+        createdBy: createdBy,
+        customerId: getStr(customerIdIdx) || ('LD' + ('0000' + i).slice(-4)),
+        customerName: customerName,
+        businessName: getStr(businessNameIdx),
+        contactNumber: getStr(contactNumberIdx),
+        planAmountPerDay: getStr(planAmountIdx),
+        numberOfDays: getStr(noDaysIdx),
+        totalAmount: getStr(totalAmountIdx),
+        adsLocations: getStr(adsLocationsIdx),
+        businessWhatsAppNumber: getStr(whatsAppIdx)
+      });
     }
 
     return ContentService.createTextOutput(JSON.stringify({

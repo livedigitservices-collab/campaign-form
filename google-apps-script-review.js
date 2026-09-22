@@ -76,25 +76,51 @@ function doGet(e) {
       return ContentService.createTextOutput(JSON.stringify({ status: 'success', createdByList: [], records: [] })).setMimeType(ContentService.MimeType.JSON);
     }
 
+    var headers = values[0].map(function(h) { return h ? h.toString().trim().toLowerCase() : ''; });
+
+    var findIdx = function(possibleNames, defaultIdx) {
+      for (var k = 0; k < possibleNames.length; k++) {
+        var idx = headers.indexOf(possibleNames[k]);
+        if (idx !== -1) return idx;
+      }
+      return defaultIdx;
+    };
+
+    var dateIdx = findIdx(['date'], 0);
+    var createdByIdx = findIdx(['created by', 'logged by', 'staff', 'staff name'], 1);
+    var customerIdIdx = findIdx(['customer id', 'client id', 'id'], 2);
+    var customerNameIdx = findIdx(['customer name', 'client name', 'name'], 3);
+    var contactNumberIdx = findIdx(['contact number', 'phone number', 'phone', 'contact'], 4);
+    var reviewIdx = findIdx(['client daily review', 'daily review', 'review'], 5);
+    var feedbackIdx = findIdx(['feedback'], 6);
+    var businessNameIdx = findIdx(['business name', 'business'], -1);
+
     var records = [];
     var createdByMap = {};
 
     for (var i = 1; i < values.length; i++) {
       var row = values[i];
       if (!row.some(function(c) { return c !== ''; })) continue;
-      var getStr = function(idx) { return (row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : ''; };
 
-      var createdBy = getStr(1);
+      var getStr = function(idx) { 
+        return (idx !== -1 && row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : ''; 
+      };
+
+      var createdBy = getStr(createdByIdx);
+      var customerName = getStr(customerNameIdx) || ('Client #' + i);
+      var customerId = getStr(customerIdIdx);
+
       if (createdBy) createdByMap[createdBy] = true;
 
       records.push({
-        date: getStr(0),
+        date: getStr(dateIdx),
         createdBy: createdBy,
-        customerId: getStr(2),
-        customerName: getStr(3),
-        contactNumber: getStr(4),
-        clientDailyReview: getStr(5),
-        feedback: getStr(6)
+        customerId: customerId,
+        customerName: customerName,
+        businessName: getStr(businessNameIdx),
+        contactNumber: getStr(contactNumberIdx),
+        clientDailyReview: getStr(reviewIdx),
+        feedback: getStr(feedbackIdx)
       });
     }
 

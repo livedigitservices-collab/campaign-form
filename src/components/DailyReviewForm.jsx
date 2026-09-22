@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Calendar, 
   User, 
@@ -12,11 +12,60 @@ import {
   RefreshCw, 
   Loader2, 
   Database,
-  UserCheck
+  UserCheck,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
 import FormInput from './FormInput';
 import SubmitButton from './SubmitButton';
 import { fetchSheetData } from '../services/googleSheets';
+
+// Helper to normalize date strings to YYYY-MM-DD
+const normalizeDateStr = (rawDate) => {
+  if (!rawDate) return '';
+  const str = rawDate.toString().trim();
+  if (!str) return '';
+  if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+  } catch (e) {}
+  return str;
+};
+
+// Flexible property extraction helper (supports camelCase, Title Case, lowercase, snake_case)
+const extractRecordFields = (rec) => {
+  if (!rec || typeof rec !== 'object') return {};
+
+  const getProp = (...keys) => {
+    for (const k of keys) {
+      if (rec[k] !== undefined && rec[k] !== null && rec[k].toString().trim() !== '') {
+        return rec[k].toString().trim();
+      }
+    }
+    return '';
+  };
+
+  const customerName = getProp('customerName', 'Customer Name', 'customer_name', 'name', 'clientName', 'Client Name');
+  const customerId = getProp('customerId', 'Customer ID', 'customer_id', 'id');
+  const createdBy = getProp('createdBy', 'Created By', 'created_by', 'loggedBy', 'Logged By', 'staffName', 'staff');
+  const businessName = getProp('businessName', 'Business Name', 'business_name', 'business');
+  const contactNumber = getProp('contactNumber', 'Contact Number', 'contact_number', 'phone', 'mobile');
+  const clientDailyReview = getProp('clientDailyReview', 'Client Daily Review', 'client_daily_review', 'review');
+  const feedback = getProp('feedback', 'Feedback');
+  const date = getProp('date', 'Date');
+
+  return {
+    customerName,
+    customerId,
+    createdBy,
+    businessName,
+    contactNumber,
+    clientDailyReview,
+    feedback,
+    date
+  };
+};
 
 const getInitialFormData = () => ({
   date: new Date().toISOString().split('T')[0],
@@ -39,13 +88,14 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
   const [createdByOptions, setCreatedByOptions] = useState([]);
   const [allRecords, setAllRecords] = useState([]);
   const [fetchStatus, setFetchStatus] = useState(null);
-  
-  // Custom toggles
-  const [isCustomCreatedBy, setIsCustomCreatedBy] = useState(false);
-  const [isCustomCustomerName, setIsCustomCustomerName] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState(null);
+
+  // Set of completed review keys formatted as `${nameOrIdKey}_${YYYY-MM-DD}`
+  const [completedReviewKeys, setCompletedReviewKeys] = useState(new Set());
+  const [sessionCompletedKeys, setSessionCompletedKeys] = useState(new Set());
 
   // Load client data from connected Sheet(s)
-  const loadClientData = async () => {
+  const loadClientData = async (silent = false) => {
     const urlsToFetch = [];
     if (webAppUrl && webAppUrl.trim()) {
       urlsToFetch.push({ name: 'Review Sheet', url: webAppUrl.trim() });
@@ -62,43 +112,56 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
       return;
     }
 
-    setIsLoadingClients(true);
-    setFetchStatus(null);
+    if (!silent) setIsLoadingClients(true);
 
     try {
       const mergedRecordsMap = new Map();
       const mergedCreatedBySet = new Set();
-      let fetchCount = 0;
+      const existingCompletedSet = new Set();
 
       for (const item of urlsToFetch) {
         const res = await fetchSheetData(item.url);
         if (res.success) {
-          fetchCount++;
           (res.createdByList || []).forEach((name) => {
             if (name && name.trim()) mergedCreatedBySet.add(name.trim());
           });
 
-          (res.records || []).forEach((rec) => {
-            if (rec.createdBy && rec.createdBy.trim()) {
-              mergedCreatedBySet.add(rec.createdBy.trim());
+          (res.records || []).forEach((rawRec, idx) => {
+            const rec = extractRecordFields(rawRec);
+
+            if (rec.createdBy) {
+              mergedCreatedBySet.add(rec.createdBy);
             }
 
-            const nameKey = rec.customerName ? rec.customerName.trim().toLowerCase() : '';
-            if (nameKey) {
-              if (!mergedRecordsMap.has(nameKey)) {
-                mergedRecordsMap.set(nameKey, {
-                  customerName: rec.customerName.trim(),
-                  createdBy: rec.createdBy ? rec.createdBy.trim() : '',
-                  customerId: rec.customerId ? rec.customerId.trim() : '',
-                  businessName: rec.businessName ? rec.businessName.trim() : '',
-                  contactNumber: rec.contactNumber ? rec.contactNumber.trim() : '',
+            const nameKey = rec.customerName ? rec.customerName.toLowerCase() : '';
+            const idKey = rec.customerId ? rec.customerId.toLowerCase() : '';
+            const phoneKey = rec.contactNumber ? rec.contactNumber.replace(/[^0-9]/g, '') : '';
+            const recordKey = nameKey || idKey || (phoneKey ? `phone_${phoneKey}` : `rec_${idx}`);
+
+            if (recordKey && (rec.customerName || rec.customerId || rec.contactNumber || rec.createdBy)) {
+              if (!mergedRecordsMap.has(recordKey)) {
+                mergedRecordsMap.set(recordKey, {
+                  customerName: rec.customerName || rec.customerId || (`Client #${idx + 1}`),
+                  createdBy: rec.createdBy,
+                  customerId: rec.customerId,
+                  businessName: rec.businessName,
+                  contactNumber: rec.contactNumber,
                 });
               } else {
-                const existing = mergedRecordsMap.get(nameKey);
-                if (!existing.createdBy && rec.createdBy) existing.createdBy = rec.createdBy.trim();
-                if (!existing.customerId && rec.customerId) existing.customerId = rec.customerId.trim();
-                if (!existing.businessName && rec.businessName) existing.businessName = rec.businessName.trim();
-                if (!existing.contactNumber && rec.contactNumber) existing.contactNumber = rec.contactNumber.trim();
+                const existing = mergedRecordsMap.get(recordKey);
+                if (!existing.createdBy && rec.createdBy) existing.createdBy = rec.createdBy;
+                if (!existing.customerId && rec.customerId) existing.customerId = rec.customerId;
+                if (!existing.businessName && rec.businessName) existing.businessName = rec.businessName;
+                if (!existing.contactNumber && rec.contactNumber) existing.contactNumber = rec.contactNumber;
+              }
+            }
+
+            // Extract completed reviews for specific dates from Review Sheet
+            if (item.name === 'Review Sheet' && (rec.clientDailyReview || rec.feedback)) {
+              const normDate = normalizeDateStr(rec.date);
+              if (normDate) {
+                if (nameKey) existingCompletedSet.add(`${nameKey}_${normDate}`);
+                if (idKey) existingCompletedSet.add(`${idKey}_${normDate}`);
               }
             }
           });
@@ -110,74 +173,94 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
 
       setCreatedByOptions(combinedCreatedBy);
       setAllRecords(combinedRecords);
+      setCompletedReviewKeys(existingCompletedSet);
 
-      if (combinedRecords.length > 0 || combinedCreatedBy.length > 0) {
-        setFetchStatus({
-          success: true,
-          message: `Loaded ${combinedRecords.length} client(s) & ${combinedCreatedBy.length} staff member(s) from connected Sheet(s).`,
-        });
-      } else {
-        setFetchStatus({
-          success: true,
-          message: 'Connected to Sheet(s) (0 clients found). You can select "+ Add New Client" below to enter custom client details.',
-        });
-      }
+      const now = new Date();
+      setLastSyncTime(now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
+
+      setFetchStatus({
+        success: true,
+        message: `Loaded ${combinedRecords.length} client(s) & ${combinedCreatedBy.length} staff member(s).`,
+      });
     } catch (err) {
       setFetchStatus({
         success: false,
         message: 'Network error fetching sheet data.',
       });
     } finally {
-      setIsLoadingClients(false);
+      if (!silent) setIsLoadingClients(false);
     }
   };
 
+  // Auto load data on mount and background poll every 30 seconds
   useEffect(() => {
     loadClientData();
+    const interval = setInterval(() => {
+      loadClientData(true);
+    }, 30000);
+    return () => clearInterval(interval);
   }, [webAppUrl, campaignUrl]);
 
-  // Filter clients matching selected Created By
-  const filteredClients = formData.createdBy
-    ? allRecords.filter(
-        (rec) => rec.createdBy && rec.createdBy.trim().toLowerCase() === formData.createdBy.trim().toLowerCase()
-      )
-    : allRecords;
+  // Re-evaluate client status when review date changes
+  const selectedNormDate = normalizeDateStr(formData.date);
 
-  // Handle Created By Dropdown change
-  const handleCreatedBySelect = (e) => {
-    const val = e.target.value;
-    if (val === '__NEW__') {
-      setIsCustomCreatedBy(true);
-      setFormData((prev) => ({ ...prev, createdBy: '', customerName: '' }));
-    } else {
-      setIsCustomCreatedBy(false);
-      setFormData((prev) => ({ ...prev, createdBy: val, customerName: '' }));
-    }
+  const isClientReviewCompleted = (clientRec) => {
+    if (!selectedNormDate) return false;
+    const nameKey = clientRec.customerName ? clientRec.customerName.trim().toLowerCase() : '';
+    const idKey = clientRec.customerId ? clientRec.customerId.trim().toLowerCase() : '';
+
+    const nameDateKey = `${nameKey}_${selectedNormDate}`;
+    const idDateKey = `${idKey}_${selectedNormDate}`;
+
+    return (
+      (nameKey && completedReviewKeys.has(nameDateKey)) ||
+      (idKey && completedReviewKeys.has(idDateKey)) ||
+      (nameKey && sessionCompletedKeys.has(nameDateKey)) ||
+      (idKey && sessionCompletedKeys.has(idDateKey))
+    );
   };
 
-  // Handle Customer Name Dropdown change & Auto Populate Client Details
+  // Categorize clients by selected staff member
+  const selectedStaffLower = (formData.createdBy || '').trim().toLowerCase();
+  
+  const directStaffClients = selectedStaffLower
+    ? allRecords.filter((rec) => rec.createdBy && rec.createdBy.trim().toLowerCase() === selectedStaffLower)
+    : allRecords;
+
+  const otherStaffClients = selectedStaffLower
+    ? allRecords.filter((rec) => !rec.createdBy || rec.createdBy.trim().toLowerCase() !== selectedStaffLower)
+    : [];
+
+  // Counts for staff progress for the selected review date
+  const completedCountForStaff = directStaffClients.filter(isClientReviewCompleted).length;
+  const totalStaffClients = directStaffClients.length;
+
+  // Handle Created By (Staff Name) Select
+  const handleCreatedBySelect = (e) => {
+    const val = e.target.value;
+    setFormData((prev) => ({
+      ...prev,
+      createdBy: val,
+      customerName: '',
+      customerId: '',
+      businessName: '',
+      contactNumber: '',
+      clientDailyReview: '',
+      feedback: '',
+    }));
+  };
+
+  // Handle Customer Select & Auto Populate Details
   const handleCustomerNameSelect = (e) => {
     const selectedName = e.target.value;
 
-    if (selectedName === '__NEW__') {
-      setIsCustomCustomerName(true);
-      setFormData((prev) => ({
-        ...prev,
-        customerName: '',
-        customerId: '',
-        businessName: '',
-        contactNumber: '',
-        clientDailyReview: '',
-        feedback: '',
-      }));
-    } else if (selectedName) {
-      setIsCustomCustomerName(false);
+    if (selectedName) {
       const matched = allRecords.find((rec) => rec.customerName === selectedName);
       if (matched) {
         setFormData((prev) => ({
           ...prev,
           customerName: matched.customerName || '',
-          createdBy: matched.createdBy || prev.createdBy,
+          createdBy: prev.createdBy || matched.createdBy || '',
           customerId: matched.customerId || '',
           businessName: matched.businessName || '',
           contactNumber: matched.contactNumber || '',
@@ -187,6 +270,16 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
       } else {
         setFormData((prev) => ({ ...prev, customerName: selectedName }));
       }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        customerName: '',
+        customerId: '',
+        businessName: '',
+        contactNumber: '',
+        clientDailyReview: '',
+        feedback: '',
+      }));
     }
   };
 
@@ -216,6 +309,14 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
 
   const validateAll = () => {
     const newErrors = {};
+
+    if (!formData.createdBy) {
+      newErrors.createdBy = 'Please select a staff member';
+    }
+    if (!formData.customerName) {
+      newErrors.customerName = 'Please select a client';
+    }
+
     Object.keys(formData).forEach((key) => {
       const err = validateField(key, formData[key]);
       if (err) newErrors[key] = err;
@@ -234,19 +335,45 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
     }
 
     if (validateAll()) {
-      // Submits payload containing only Review & Feedback structure
+      const submittedClientName = formData.customerName;
+      const submittedClientId = formData.customerId;
+      const currentCreatedBy = formData.createdBy;
+      const currentDate = formData.date;
+      const normCurrentDate = normalizeDateStr(currentDate);
+
       onSubmit({
-        date: formData.date,
-        createdBy: formData.createdBy,
-        customerId: formData.customerId,
-        customerName: formData.customerName,
+        date: currentDate,
+        createdBy: currentCreatedBy,
+        customerId: submittedClientId,
+        customerName: submittedClientName,
         contactNumber: formData.contactNumber,
         clientDailyReview: formData.clientDailyReview,
         feedback: formData.feedback,
       }, () => {
-        setFormData(getInitialFormData());
-        setIsCustomCreatedBy(false);
-        setIsCustomCustomerName(false);
+        // Record completed review key for current date
+        if (normCurrentDate) {
+          if (submittedClientName) {
+            const nameKey = `${submittedClientName.trim().toLowerCase()}_${normCurrentDate}`;
+            setSessionCompletedKeys((prev) => new Set([...prev, nameKey]));
+          }
+          if (submittedClientId) {
+            const idKey = `${submittedClientId.trim().toLowerCase()}_${normCurrentDate}`;
+            setSessionCompletedKeys((prev) => new Set([...prev, idKey]));
+          }
+        }
+
+        // Clear client fields, keeping selected Staff Member & Date for next client review
+        setFormData((prev) => ({
+          ...prev,
+          date: currentDate,
+          createdBy: currentCreatedBy,
+          customerId: '',
+          customerName: '',
+          businessName: '',
+          contactNumber: '',
+          clientDailyReview: '',
+          feedback: '',
+        }));
         setErrors({});
         setTouched({});
       });
@@ -268,7 +395,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           }
         }}
         className={`
-          inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md transition-all shadow-2xs
+          inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-md transition-all shadow-2xs shrink-0
           ${hasNumber 
             ? 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer active:scale-95' 
             : 'bg-slate-200 text-slate-400 cursor-not-allowed'
@@ -282,38 +409,75 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
     );
   };
 
-  // Build options for Created By dropdown
-  const createdBySelectOptions = [
-    ...(createdByOptions.length > 0
-      ? createdByOptions.map((name) => ({ value: name, label: name }))
-      : [{ value: '', label: isLoadingClients ? '-- Loading team from Campaign Sheet... --' : '-- No team members found --' }]
-    ),
-    { value: '__NEW__', label: '+ Enter Custom Created By...' },
-  ];
+  // Options for Created By (Staff Name) Dropdown
+  const createdBySelectOptions = createdByOptions.length > 0
+    ? createdByOptions.map((name) => ({ value: name, label: name }))
+    : [{ value: '', label: isLoadingClients ? '-- Loading staff members... --' : '-- No staff members found --' }];
 
-  // Build options for Customer Name dropdown
+  // Options for Customer Name Dropdown
   let customerNameSelectOptions = [];
+
   if (allRecords.length === 0) {
     customerNameSelectOptions = [
-      { value: '', label: isLoadingClients ? '-- Loading clients... --' : '-- No existing clients found --' }
+      { value: '', label: isLoadingClients ? '-- Loading clients... --' : '-- No clients found in Google Sheet --', disabled: true }
     ];
-  } else if (filteredClients.length > 0) {
-    customerNameSelectOptions = filteredClients.map((rec) => ({
-      value: rec.customerName,
-      label: `${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}${rec.createdBy ? ` - ${rec.createdBy}` : ''}`,
-    }));
+  } else if (!formData.createdBy) {
+    // No staff member selected yet: list all clients with staff attribution
+    customerNameSelectOptions = allRecords.map((rec) => {
+      const isCompleted = isClientReviewCompleted(rec);
+      return {
+        value: rec.customerName,
+        label: isCompleted
+          ? `[DONE TODAY] ${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}${rec.createdBy ? ` - Staff: ${rec.createdBy}` : ''}`
+          : `${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}${rec.createdBy ? ` - Staff: ${rec.createdBy}` : ''}`,
+        disabled: isCompleted,
+      };
+    });
   } else {
-    customerNameSelectOptions = allRecords.map((rec) => ({
-      value: rec.customerName,
-      label: `${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}`,
-    }));
+    // Staff member selected: list direct staff clients first
+    const directOptions = directStaffClients.map((rec) => {
+      const isCompleted = isClientReviewCompleted(rec);
+      return {
+        value: rec.customerName,
+        label: isCompleted
+          ? `[DONE TODAY] ${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''} - Review Taken`
+          : `${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}`,
+        disabled: isCompleted,
+      };
+    });
+
+    const otherOptions = otherStaffClients.map((rec) => {
+      const isCompleted = isClientReviewCompleted(rec);
+      return {
+        value: rec.customerName,
+        label: isCompleted
+          ? `[DONE TODAY] ${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}${rec.createdBy ? ` (${rec.createdBy})` : ''}`
+          : `${rec.customerName}${rec.businessName ? ` (${rec.businessName})` : ''}${rec.createdBy ? ` (Staff: ${rec.createdBy})` : ''}`,
+        disabled: isCompleted,
+      };
+    });
+
+    if (directOptions.length > 0) {
+      customerNameSelectOptions = [
+        ...directOptions,
+        ...(otherOptions.length > 0
+          ? [
+              { value: '', label: '── All Other Clients ──', disabled: true },
+              ...otherOptions
+            ]
+          : []
+        )
+      ];
+    } else {
+      // If no direct clients explicitly assigned to staff, show all available clients
+      customerNameSelectOptions = otherOptions;
+    }
   }
-  customerNameSelectOptions.push({ value: '__NEW__', label: '+ Add New Client...' });
 
   return (
     <div className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200/80 overflow-hidden">
       {!isUrlConfigured && (
-        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3.5 flex items-center justify-between text-xs text-amber-800">
+        <div className="bg-amber-50 border-b border-amber-200 px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between text-xs text-amber-800 gap-2">
           <div className="flex items-center space-x-2">
             <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
             <span>Review & Feedback Google Apps Script Web App URL is not set. Submissions disabled.</span>
@@ -321,7 +485,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           <button
             type="button"
             onClick={onOpenSettings}
-            className="underline font-semibold hover:text-amber-900 shrink-0 ml-2"
+            className="underline font-semibold hover:text-amber-900 shrink-0"
           >
             Configure Review Script URL
           </button>
@@ -329,18 +493,25 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
       )}
 
       {/* Sync Status / Fetch Bar */}
-      <div className="bg-slate-100/90 border-b border-slate-200 px-6 py-2.5 flex items-center justify-between text-xs text-slate-700">
-        <div className="flex items-center space-x-2 font-medium">
+      <div className="bg-slate-100/90 border-b border-slate-200 px-4 sm:px-6 py-2.5 flex flex-wrap items-center justify-between text-xs text-slate-700 gap-2">
+        <div className="flex items-center space-x-2 font-medium overflow-hidden">
           <Database className="w-4 h-4 text-indigo-600 shrink-0" />
           {isLoadingClients ? (
-            <div className="flex items-center space-x-1.5 text-indigo-700">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              <span>Fetching clients from Campaign Sheet...</span>
+            <div className="flex items-center space-x-1.5 text-indigo-700 truncate">
+              <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" />
+              <span className="truncate">Syncing clients from Google Sheet...</span>
             </div>
           ) : fetchStatus ? (
-            <span className={fetchStatus.success ? 'text-slate-800 font-semibold' : 'text-amber-700 font-semibold'}>
-              {fetchStatus.message}
-            </span>
+            <div className="flex items-center space-x-2 truncate">
+              <span className={`truncate ${fetchStatus.success ? 'text-slate-800 font-semibold' : 'text-amber-700 font-semibold'}`}>
+                {fetchStatus.message}
+              </span>
+              {lastSyncTime && (
+                <span className="text-[10px] text-slate-400 font-normal hidden xs:inline">
+                  (Synced {lastSyncTime})
+                </span>
+              )}
+            </div>
           ) : (
             <span>Review & Feedback Sheet Ready</span>
           )}
@@ -348,29 +519,40 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
 
         <button
           type="button"
-          onClick={loadClientData}
+          onClick={() => loadClientData(false)}
           disabled={isLoadingClients}
-          className="flex items-center space-x-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-indigo-300 transition-all shadow-xs active:scale-95"
-          title="Reload clients from Campaign Sheet"
+          className="flex items-center space-x-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 px-3 py-1.5 rounded-lg bg-white border border-slate-300 hover:border-indigo-300 transition-all shadow-xs active:scale-95 shrink-0 ml-auto sm:ml-0"
+          title="Reload clients from Google Sheet"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${isLoadingClients ? 'animate-spin' : ''}`} />
           <span>Sync Clients</span>
         </button>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-6 sm:p-8 space-y-8">
+      <form onSubmit={handleSubmit} className="p-4 sm:p-8 space-y-6 sm:space-y-8">
         {/* Client Selection Section */}
         <section className="space-y-4">
-          <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-100">
-            <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
-              <UserCheck className="w-4 h-4" />
+          <div className="flex items-center justify-between pb-2 border-b border-slate-100 flex-wrap gap-2">
+            <div className="flex items-center space-x-2.5">
+              <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
+                <UserCheck className="w-4 h-4" />
+              </div>
+              <h2 className="text-base font-bold text-slate-900 tracking-tight">
+                Select Staff & Client
+              </h2>
             </div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Select Client & Staff
-            </h2>
+
+            {formData.createdBy && totalStaffClients > 0 && (
+              <div className="flex items-center space-x-1.5 text-xs font-semibold text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-full border border-indigo-100">
+                <CheckCircle className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  {completedCountForStaff} of {totalStaffClients} Reviews Done Today
+                </span>
+              </div>
+            )}
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             {/* Review Date */}
             <FormInput
               id="date"
@@ -383,50 +565,25 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               error={touched.date ? errors.date : ''}
             />
 
-            {/* Created By Dropdown */}
-            <div className="flex flex-col space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="createdBy" className="text-xs font-semibold text-slate-700">
-                  Logged By (Staff Name)
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomCreatedBy(!isCustomCreatedBy)}
-                  className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
-                >
-                  {isCustomCreatedBy ? '← Select from Dropdown' : '+ Enter Custom'}
-                </button>
-              </div>
+            {/* Created By Dropdown (Staff Member) */}
+            <FormInput
+              id="createdBy"
+              name="createdBy"
+              label="Logged By (Staff Name)"
+              type="select"
+              value={formData.createdBy}
+              onChange={(e) => {
+                handleCreatedBySelect(e);
+                handleChange(e);
+              }}
+              icon={User}
+              placeholder="-- Select Staff Member --"
+              options={createdBySelectOptions}
+              helperText="Select staff member to view their assigned clients"
+              error={touched.createdBy ? errors.createdBy : ''}
+            />
 
-              {!isCustomCreatedBy ? (
-                <FormInput
-                  id="createdBy"
-                  name="createdBy"
-                  type="select"
-                  value={formData.createdBy}
-                  onChange={(e) => {
-                    handleCreatedBySelect(e);
-                    handleChange(e);
-                  }}
-                  icon={User}
-                  placeholder="-- Select Staff Member --"
-                  options={createdBySelectOptions}
-                  error={touched.createdBy ? errors.createdBy : ''}
-                />
-              ) : (
-                <FormInput
-                  id="createdBy"
-                  name="createdBy"
-                  placeholder="e.g. John Doe"
-                  value={formData.createdBy}
-                  onChange={handleChange}
-                  icon={User}
-                  error={touched.createdBy ? errors.createdBy : ''}
-                />
-              )}
-            </div>
-
-            {/* Customer ID & Customer Name Dropdown */}
+            {/* Customer ID */}
             <FormInput
               id="customerId"
               name="customerId"
@@ -435,60 +592,40 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               value={formData.customerId}
               onChange={handleChange}
               icon={Hash}
+              readOnly={true}
+              helperText="Auto-filled when client is selected"
               error={touched.customerId ? errors.customerId : ''}
             />
 
-            {/* Customer Name Dropdown */}
-            <div className="flex flex-col space-y-1.5">
-              <div className="flex items-center justify-between">
-                <label htmlFor="customerName" className="text-xs font-semibold text-slate-700">
-                  Select Customer / Client
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsCustomCustomerName(!isCustomCustomerName)}
-                  className="text-[10px] font-semibold text-indigo-600 hover:text-indigo-800"
-                >
-                  {isCustomCustomerName ? '← Select from Dropdown' : '+ Enter Custom'}
-                </button>
-              </div>
+            {/* Customer Name Dropdown (Filtered for Staff) */}
+            <FormInput
+              id="customerName"
+              name="customerName"
+              label="Select Customer / Client"
+              type="select"
+              value={formData.customerName}
+              onChange={(e) => {
+                handleCustomerNameSelect(e);
+                handleChange(e);
+              }}
+              icon={User}
+              placeholder={
+                allRecords.length === 0
+                  ? '-- No clients found in Google Sheet --'
+                  : formData.createdBy 
+                  ? `-- Select Client for ${formData.createdBy} (${directStaffClients.length - completedCountForStaff} pending today) --` 
+                  : `-- Select Client (${allRecords.length} available) --`
+              }
+              options={customerNameSelectOptions}
+              helperText={
+                formData.createdBy
+                  ? `Showing clients assigned to ${formData.createdBy}`
+                  : 'Select staff member above to filter clients'
+              }
+              error={touched.customerName ? errors.customerName : ''}
+            />
 
-              {!isCustomCustomerName ? (
-                <FormInput
-                  id="customerName"
-                  name="customerName"
-                  type="select"
-                  value={formData.customerName}
-                  onChange={(e) => {
-                    handleCustomerNameSelect(e);
-                    handleChange(e);
-                  }}
-                  icon={User}
-                  placeholder={
-                    allRecords.length === 0
-                      ? '-- No clients in Campaign Sheet --'
-                      : formData.createdBy 
-                      ? `-- Select Client for ${formData.createdBy} (${filteredClients.length} found) --` 
-                      : `-- Select Client (${allRecords.length} available) --`
-                  }
-                  options={customerNameSelectOptions}
-                  helperText="Selecting a client fills Customer ID & Phone Number below"
-                  error={touched.customerName ? errors.customerName : ''}
-                />
-              ) : (
-                <FormInput
-                  id="customerName"
-                  name="customerName"
-                  placeholder="e.g. Rahul Sharma"
-                  value={formData.customerName}
-                  onChange={handleChange}
-                  icon={User}
-                  error={touched.customerName ? errors.customerName : ''}
-                />
-              )}
-            </div>
-
-            {/* Business Name & Contact Number (With Call Button) */}
+            {/* Business Name */}
             <FormInput
               id="businessName"
               name="businessName"
@@ -497,9 +634,11 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               value={formData.businessName}
               onChange={handleChange}
               icon={Building}
+              readOnly={true}
               error={touched.businessName ? errors.businessName : ''}
             />
 
+            {/* Contact Number (With Direct Call Button) */}
             <FormInput
               id="contactNumber"
               name="contactNumber"
@@ -522,11 +661,11 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               <FileText className="w-4 h-4" />
             </div>
             <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Daily Review & Feedback Data (Stored in Review Sheet)
+              Daily Review & Feedback Details
             </h2>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
             <FormInput
               id="clientDailyReview"
               name="clientDailyReview"
@@ -559,7 +698,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
         <div className="pt-4 border-t border-slate-100">
           <SubmitButton
             isSubmitting={isSubmitting}
-            disabled={!isUrlConfigured}
+            disabled={!isUrlConfigured || !formData.customerName}
           />
         </div>
       </form>
