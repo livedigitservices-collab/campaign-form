@@ -1,7 +1,7 @@
 import React from 'react';
-import { FormInput as FormIcon, Link2, CheckCircle2, AlertCircle, Settings } from 'lucide-react';
+import { FormInput as FormIcon, CheckCircle2, AlertCircle, Settings, FileText, Megaphone } from 'lucide-react';
 
-export default function Header({ webAppUrl, onOpenSettings }) {
+export default function Header({ webAppUrl, onOpenSettings, activeTab = 'campaign', onSelectTab }) {
   const isUrlConfigured = Boolean(webAppUrl && webAppUrl.trim());
 
   return (
@@ -13,14 +13,49 @@ export default function Header({ webAppUrl, onOpenSettings }) {
             <FormIcon className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-slate-900 leading-tight">
-              Campaign Entry Portal
+            <h1 className="text-base sm:text-lg font-bold text-slate-900 leading-tight">
+              Campaign Portal
             </h1>
-            <p className="text-xs text-slate-500 font-medium hidden sm:block">
+            <p className="text-[11px] text-slate-500 font-medium hidden sm:block">
               Google Sheets Direct Sync
             </p>
           </div>
         </div>
+
+        {/* Navigation Tabs */}
+        {onSelectTab && (
+          <nav className="flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+            <button
+              type="button"
+              onClick={() => onSelectTab('campaign')}
+              className={`
+                flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                ${activeTab === 'campaign' 
+                  ? 'bg-white text-indigo-700 shadow-2xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+                }
+              `}
+            >
+              <Megaphone className="w-3.5 h-3.5" />
+              <span>Campaign Entry</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onSelectTab('review')}
+              className={`
+                flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all
+                ${activeTab === 'review' 
+                  ? 'bg-white text-indigo-700 shadow-2xs' 
+                  : 'text-slate-600 hover:text-slate-900'
+                }
+              `}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>Daily Review & Feedback</span>
+            </button>
+          </nav>
+        )}
 
         {/* Apps Script URL status & settings trigger */}
         <div className="flex items-center space-x-3">
@@ -36,7 +71,7 @@ export default function Header({ webAppUrl, onOpenSettings }) {
               </span>
             ) : (
               <span className="flex items-center text-amber-600 font-semibold">
-                <AlertCircle className="w-3.5 h-3.5 mr-1" /> Script URL Needed
+                <AlertCircle className="w-3.5 h-3.5 mr-1" /> URL Needed
               </span>
             )}
             <span className="text-slate-300">|</span>

@@ -1,24 +1,28 @@
 import React, { useState } from 'react';
 import Header from '../components/Header';
-import CustomerForm from '../components/CustomerForm';
+import DailyReviewForm from '../components/DailyReviewForm';
 import ToastNotification from '../components/ToastNotification';
 import UrlConfigModal from '../components/UrlConfigModal';
 import { submitToGoogleSheets } from '../services/googleSheets';
-import { Sparkles, ShieldCheck, Zap } from 'lucide-react';
+import { Sparkles, PhoneCall, FileText, CheckCircle2 } from 'lucide-react';
 
-const DEFAULT_WEB_APP_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
+const DEFAULT_CAMPAIGN_URL = import.meta.env.VITE_APPS_SCRIPT_URL || '';
+const DEFAULT_REVIEW_URL = import.meta.env.VITE_APPS_SCRIPT_REVIEW_URL || DEFAULT_CAMPAIGN_URL;
 
-export default function Home({ activeTab, onSelectTab }) {
-  const [webAppUrl, setWebAppUrl] = useState(() => {
-    return localStorage.getItem('google_apps_script_url') || DEFAULT_WEB_APP_URL;
+export default function DailyReviewPage({ activeTab, onSelectTab }) {
+  const [reviewUrl, setReviewUrl] = useState(() => {
+    return localStorage.getItem('google_apps_script_review_url') || DEFAULT_REVIEW_URL;
   });
+
+  const campaignUrl = localStorage.getItem('google_apps_script_url') || DEFAULT_CAMPAIGN_URL;
+
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
 
-  const handleSaveUrl = (newUrl) => {
-    setWebAppUrl(newUrl);
-    localStorage.setItem('google_apps_script_url', newUrl);
+  const handleSaveReviewUrl = (newUrl) => {
+    setReviewUrl(newUrl);
+    localStorage.setItem('google_apps_script_review_url', newUrl);
   };
 
   const handleFormSubmit = async (formData, resetForm) => {
@@ -26,23 +30,23 @@ export default function Home({ activeTab, onSelectTab }) {
     setToast(null);
 
     try {
-      const response = await submitToGoogleSheets(webAppUrl, formData);
+      const response = await submitToGoogleSheets(reviewUrl, formData);
       if (response.success) {
         setToast({
           type: 'success',
-          message: 'Details submitted successfully.',
+          message: 'Daily Review & Feedback saved to Review Google Sheet successfully!',
         });
         resetForm();
       } else {
         setToast({
           type: 'error',
-          message: response.message || 'Unable to submit the details. Please try again.',
+          message: response.message || 'Unable to store daily review. Please try again.',
         });
       }
     } catch (error) {
       setToast({
         type: 'error',
-        message: 'Unable to submit the details. Please try again.',
+        message: 'Unable to store daily review. Please try again.',
       });
     } finally {
       setIsSubmitting(false);
@@ -52,7 +56,7 @@ export default function Home({ activeTab, onSelectTab }) {
   return (
     <div className="min-h-screen flex flex-col bg-slate-50">
       <Header
-        webAppUrl={webAppUrl}
+        webAppUrl={reviewUrl}
         onOpenSettings={() => setIsSettingsOpen(true)}
         activeTab={activeTab}
         onSelectTab={onSelectTab}
@@ -62,65 +66,69 @@ export default function Home({ activeTab, onSelectTab }) {
         {/* Page Banner / Hero Intro */}
         <div className="text-center max-w-2xl mx-auto mb-8 space-y-2">
           <div className="inline-flex items-center space-x-2 bg-indigo-50 border border-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Customer & Campaign Management</span>
+            <FileText className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Dedicated Review & Feedback Sheet Integration</span>
           </div>
           <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 tracking-tight">
-            Submit Campaign Details
+            Client Daily Review & Call Portal
           </h2>
           <p className="text-sm text-slate-500">
-            Fill out the customer and campaign parameters below. Submissions sync directly to your connected Google Sheet.
+            Select team member & client to auto-populate customer details, call clients directly, and store daily reviews & feedback into your separate Review Google Sheet.
           </p>
         </div>
 
         {/* Centered Form Card */}
         <div className="max-w-3xl mx-auto">
-          <CustomerForm
+          <DailyReviewForm
             onSubmit={handleFormSubmit}
             isSubmitting={isSubmitting}
-            isUrlConfigured={Boolean(webAppUrl && webAppUrl.trim())}
+            isUrlConfigured={Boolean(reviewUrl && reviewUrl.trim())}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            campaignUrl={campaignUrl}
           />
         </div>
 
-        {/* Value Proposition Badges */}
+        {/* Feature Highlights */}
         <div className="mt-12 grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl mx-auto">
-          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
-            <Zap className="w-5 h-5 text-indigo-500 shrink-0" />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-900">Fast & Clean</p>
-              <p className="text-slate-500">Instant customer form entry</p>
-            </div>
-          </div>
-
-          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
-            <ShieldCheck className="w-5 h-5 text-indigo-500 shrink-0" />
-            <div className="text-xs">
-              <p className="font-semibold text-slate-900">Secure Frontend</p>
-              <p className="text-slate-500">Zero sensitive credentials stored</p>
-            </div>
-          </div>
-
           <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
             <Sparkles className="w-5 h-5 text-indigo-500 shrink-0" />
             <div className="text-xs">
-              <p className="font-semibold text-slate-900">Google Sheet Sync</p>
-              <p className="text-slate-500">Direct Apps Script connection</p>
+              <p className="font-semibold text-slate-900">Campaign Client Lookup</p>
+              <p className="text-slate-500">Pulls clients from Campaign Sheet</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
+            <PhoneCall className="w-5 h-5 text-indigo-500 shrink-0" />
+            <div className="text-xs">
+              <p className="font-semibold text-slate-900">Direct Calling</p>
+              <p className="text-slate-500">Instant dialer link for phone numbers</p>
+            </div>
+          </div>
+
+          <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-2xs flex items-center space-x-3 text-slate-600">
+            <CheckCircle2 className="w-5 h-5 text-indigo-500 shrink-0" />
+            <div className="text-xs">
+              <p className="font-semibold text-slate-900">Dedicated Review Sheet</p>
+              <p className="text-slate-500">Stores only review & feedback history</p>
             </div>
           </div>
         </div>
       </main>
 
       <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-400">
-        <p>Customer & Campaign Entry Portal • Powered by React & Google Apps Script</p>
+        <p>Daily Client Review Portal • Powered by React & Dedicated Review Google Sheet</p>
       </footer>
 
-      {/* Modal and Toast */}
+      {/* Settings Modal and Toast */}
       <UrlConfigModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        currentUrl={webAppUrl}
-        onSave={handleSaveUrl}
+        currentUrl={reviewUrl}
+        onSave={handleSaveReviewUrl}
+        title="Review & Feedback Sheet Web App Connection"
+        subtitle="Configure Web App URL for storing Daily Reviews & Feedback"
+        envVarName="VITE_APPS_SCRIPT_REVIEW_URL"
       />
 
       <ToastNotification

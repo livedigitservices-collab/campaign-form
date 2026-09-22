@@ -1,9 +1,21 @@
-import React, { useState } from 'react';
-import { X, ExternalLink, Key, Check } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Key, Check } from 'lucide-react';
 
-export default function UrlConfigModal({ isOpen, onClose, currentUrl, onSave }) {
+export default function UrlConfigModal({ 
+  isOpen, 
+  onClose, 
+  currentUrl, 
+  onSave, 
+  title = 'Google Apps Script Connection',
+  subtitle = 'Configure Web App URL for Google Sheets Sync',
+  envVarName = 'VITE_APPS_SCRIPT_URL'
+}) {
   const [urlInput, setUrlInput] = useState(currentUrl || '');
   const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    setUrlInput(currentUrl || '');
+  }, [currentUrl, isOpen]);
 
   if (!isOpen) return null;
 
@@ -33,8 +45,8 @@ export default function UrlConfigModal({ isOpen, onClose, currentUrl, onSave }) 
             <Key className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-slate-900">Google Apps Script Connection</h3>
-            <p className="text-xs text-slate-500">Configure Web App URL for Google Sheets Sync</p>
+            <h3 className="text-base font-bold text-slate-900">{title}</h3>
+            <p className="text-xs text-slate-500">{subtitle}</p>
           </div>
         </div>
 
@@ -62,7 +74,7 @@ export default function UrlConfigModal({ isOpen, onClose, currentUrl, onSave }) 
               💡 Setup Tip:
             </p>
             <p className="text-amber-700">
-              You can also set <code>VITE_APPS_SCRIPT_URL</code> inside a <code>.env</code> file in your project root.
+              You can also set <code>{envVarName}</code> inside a <code>.env</code> file in your project root.
             </p>
           </div>
 
