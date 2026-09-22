@@ -73,18 +73,23 @@ function doGet(e) {
     var values = sheet.getDataRange().getValues();
 
     if (!values || values.length <= 1) {
-      return ContentService.createTextOutput(JSON.stringify({ status: 'success', records: [] })).setMimeType(ContentService.MimeType.JSON);
+      return ContentService.createTextOutput(JSON.stringify({ status: 'success', createdByList: [], records: [] })).setMimeType(ContentService.MimeType.JSON);
     }
 
     var records = [];
+    var createdByMap = {};
+
     for (var i = 1; i < values.length; i++) {
       var row = values[i];
       if (!row.some(function(c) { return c !== ''; })) continue;
       var getStr = function(idx) { return (row[idx] !== undefined && row[idx] !== null) ? row[idx].toString().trim() : ''; };
 
+      var createdBy = getStr(1);
+      if (createdBy) createdByMap[createdBy] = true;
+
       records.push({
         date: getStr(0),
-        createdBy: getStr(1),
+        createdBy: createdBy,
         customerId: getStr(2),
         customerName: getStr(3),
         contactNumber: getStr(4),
@@ -96,6 +101,7 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({
       status: 'success',
       totalRecords: records.length,
+      createdByList: Object.keys(createdByMap).sort(),
       records: records
     })).setMimeType(ContentService.MimeType.JSON);
   } catch (err) {

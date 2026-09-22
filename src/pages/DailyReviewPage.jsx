@@ -84,6 +84,7 @@ export default function DailyReviewPage({ activeTab, onSelectTab }) {
             isSubmitting={isSubmitting}
             isUrlConfigured={Boolean(reviewUrl && reviewUrl.trim())}
             onOpenSettings={() => setIsSettingsOpen(true)}
+            webAppUrl={reviewUrl}
             campaignUrl={campaignUrl}
           />
         </div>

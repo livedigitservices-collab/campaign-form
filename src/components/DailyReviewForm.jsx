@@ -29,12 +29,12 @@ const getInitialFormData = () => ({
   feedback: '',
 });
 
-export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigured, onOpenSettings, campaignUrl }) {
+export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigured, onOpenSettings, webAppUrl, campaignUrl }) {
   const [formData, setFormData] = useState(getInitialFormData);
   const [errors, setErrors] = useState({});
   const [touched, setTouched] = useState({});
 
-  // Client Data state (fetched from Campaign Sheet)
+  // Client Data state (fetched from connected Google Sheets)
   const [isLoadingClients, setIsLoadingClients] = useState(false);
   const [createdByOptions, setCreatedByOptions] = useState([]);
   const [allRecords, setAllRecords] = useState([]);
@@ -44,39 +44,88 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
   const [isCustomCreatedBy, setIsCustomCreatedBy] = useState(false);
   const [isCustomCustomerName, setIsCustomCustomerName] = useState(false);
 
-  // Load client data from Campaign Sheet
+  // Load client data from connected Sheet(s)
   const loadClientData = async () => {
-    if (!campaignUrl || !campaignUrl.trim()) return;
+    const urlsToFetch = [];
+    if (webAppUrl && webAppUrl.trim()) {
+      urlsToFetch.push({ name: 'Review Sheet', url: webAppUrl.trim() });
+    }
+    if (campaignUrl && campaignUrl.trim() && campaignUrl.trim() !== webAppUrl?.trim()) {
+      urlsToFetch.push({ name: 'Campaign Sheet', url: campaignUrl.trim() });
+    }
+
+    if (urlsToFetch.length === 0) {
+      setFetchStatus({
+        success: false,
+        message: 'No Google Sheet URL configured. Please configure Web App URL in settings.',
+      });
+      return;
+    }
+
     setIsLoadingClients(true);
     setFetchStatus(null);
 
     try {
-      const res = await fetchSheetData(campaignUrl);
-      if (res.success) {
-        setCreatedByOptions(res.createdByList || []);
-        setAllRecords(res.records || []);
-        
-        if (res.records.length > 0) {
-          setFetchStatus({
-            success: true,
-            message: `Loaded ${res.records.length} clients and ${res.createdByList.length} team members from Campaign Sheet.`,
+      const mergedRecordsMap = new Map();
+      const mergedCreatedBySet = new Set();
+      let fetchCount = 0;
+
+      for (const item of urlsToFetch) {
+        const res = await fetchSheetData(item.url);
+        if (res.success) {
+          fetchCount++;
+          (res.createdByList || []).forEach((name) => {
+            if (name && name.trim()) mergedCreatedBySet.add(name.trim());
           });
-        } else {
-          setFetchStatus({
-            success: true,
-            message: 'Connected to Campaign Sheet (0 clients found). Add clients in Campaign Entry first!',
+
+          (res.records || []).forEach((rec) => {
+            if (rec.createdBy && rec.createdBy.trim()) {
+              mergedCreatedBySet.add(rec.createdBy.trim());
+            }
+
+            const nameKey = rec.customerName ? rec.customerName.trim().toLowerCase() : '';
+            if (nameKey) {
+              if (!mergedRecordsMap.has(nameKey)) {
+                mergedRecordsMap.set(nameKey, {
+                  customerName: rec.customerName.trim(),
+                  createdBy: rec.createdBy ? rec.createdBy.trim() : '',
+                  customerId: rec.customerId ? rec.customerId.trim() : '',
+                  businessName: rec.businessName ? rec.businessName.trim() : '',
+                  contactNumber: rec.contactNumber ? rec.contactNumber.trim() : '',
+                });
+              } else {
+                const existing = mergedRecordsMap.get(nameKey);
+                if (!existing.createdBy && rec.createdBy) existing.createdBy = rec.createdBy.trim();
+                if (!existing.customerId && rec.customerId) existing.customerId = rec.customerId.trim();
+                if (!existing.businessName && rec.businessName) existing.businessName = rec.businessName.trim();
+                if (!existing.contactNumber && rec.contactNumber) existing.contactNumber = rec.contactNumber.trim();
+              }
+            }
           });
         }
+      }
+
+      const combinedRecords = Array.from(mergedRecordsMap.values());
+      const combinedCreatedBy = Array.from(mergedCreatedBySet).sort();
+
+      setCreatedByOptions(combinedCreatedBy);
+      setAllRecords(combinedRecords);
+
+      if (combinedRecords.length > 0 || combinedCreatedBy.length > 0) {
+        setFetchStatus({
+          success: true,
+          message: `Loaded ${combinedRecords.length} client(s) & ${combinedCreatedBy.length} staff member(s) from connected Sheet(s).`,
+        });
       } else {
         setFetchStatus({
-          success: false,
-          message: res.error || 'Could not fetch clients from Campaign Sheet.',
+          success: true,
+          message: 'Connected to Sheet(s) (0 clients found). You can select "+ Add New Client" below to enter custom client details.',
         });
       }
     } catch (err) {
       setFetchStatus({
         success: false,
-        message: 'Network error fetching Campaign Sheet data.',
+        message: 'Network error fetching sheet data.',
       });
     } finally {
       setIsLoadingClients(false);
@@ -85,7 +134,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
 
   useEffect(() => {
     loadClientData();
-  }, [campaignUrl]);
+  }, [webAppUrl, campaignUrl]);
 
   // Filter clients matching selected Created By
   const filteredClients = formData.createdBy
