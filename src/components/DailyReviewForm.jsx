@@ -287,9 +287,15 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
     let error = '';
     const strVal = (value || '').toString().trim();
 
-    if (!strVal) return '';
-
-    if (name === 'contactNumber') {
+    if (name === 'createdBy' && !strVal) {
+      error = 'Please select a staff member';
+    } else if (name === 'customerName' && !strVal) {
+      error = 'Please select a client';
+    } else if (name === 'feedback' && !strVal) {
+      error = 'Please select client feedback status';
+    } else if (name === 'clientDailyReview' && !strVal) {
+      error = 'Please enter daily review notes';
+    } else if (name === 'contactNumber' && strVal) {
       if (!/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,14}$/.test(strVal)) {
         error = 'Enter a valid phone number';
       }
@@ -316,6 +322,12 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
     if (!formData.customerName) {
       newErrors.customerName = 'Please select a client';
     }
+    if (!formData.feedback) {
+      newErrors.feedback = 'Please select client feedback status';
+    }
+    if (!formData.clientDailyReview || !formData.clientDailyReview.trim()) {
+      newErrors.clientDailyReview = 'Please enter daily review notes';
+    }
 
     Object.keys(formData).forEach((key) => {
       const err = validateField(key, formData[key]);
@@ -323,6 +335,17 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
     });
 
     setErrors(newErrors);
+    setTouched({
+      date: true,
+      createdBy: true,
+      customerId: true,
+      customerName: true,
+      businessName: true,
+      contactNumber: true,
+      clientDailyReview: true,
+      feedback: true,
+    });
+
     return Object.keys(newErrors).length === 0;
   };
 
@@ -559,6 +582,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               name="date"
               label="Review Date"
               type="date"
+              required={true}
               value={formData.date}
               onChange={handleChange}
               icon={Calendar}
@@ -571,6 +595,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               name="createdBy"
               label="Logged By (Staff Name)"
               type="select"
+              required={true}
               value={formData.createdBy}
               onChange={(e) => {
                 handleCreatedBySelect(e);
@@ -603,6 +628,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
               name="customerName"
               label="Select Customer / Client"
               type="select"
+              required={true}
               value={formData.customerName}
               onChange={(e) => {
                 handleCustomerNameSelect(e);
@@ -666,30 +692,39 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
+            {/* Client Feedback Status Dropdown */}
+            <FormInput
+              id="feedback"
+              name="feedback"
+              label="Client Feedback Status"
+              type="select"
+              required={true}
+              value={formData.feedback}
+              onChange={handleChange}
+              icon={MessageCircle}
+              placeholder="-- Select Client Feedback --"
+              options={[
+                { value: 'Positive Review', label: 'Positive Review' },
+                { value: 'Negative Review', label: 'Negative Review' },
+                { value: 'Not Contacted', label: 'Not Contacted' },
+              ]}
+              helperText="Choose feedback status for the selected client"
+              error={touched.feedback ? errors.feedback : ''}
+            />
+
+            {/* Client Daily Review Notes */}
             <FormInput
               id="clientDailyReview"
               name="clientDailyReview"
-              label="Client Daily Review"
+              label="Client Daily Review Notes"
               type="textarea"
+              required={true}
               rows={4}
               placeholder="Enter daily updates, progress, performance metrics discussed with client..."
               value={formData.clientDailyReview}
               onChange={handleChange}
               icon={FileText}
               error={touched.clientDailyReview ? errors.clientDailyReview : ''}
-            />
-
-            <FormInput
-              id="feedback"
-              name="feedback"
-              label="Client Feedback"
-              type="textarea"
-              rows={4}
-              placeholder="Enter client feedback, complaints, requests, or next steps..."
-              value={formData.feedback}
-              onChange={handleChange}
-              icon={MessageCircle}
-              error={touched.feedback ? errors.feedback : ''}
             />
           </div>
         </section>
@@ -698,7 +733,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
         <div className="pt-4 border-t border-slate-100">
           <SubmitButton
             isSubmitting={isSubmitting}
-            disabled={!isUrlConfigured || !formData.customerName}
+            disabled={!isUrlConfigured || !formData.createdBy || !formData.customerName || !formData.feedback || !formData.clientDailyReview?.trim()}
           />
         </div>
       </form>
