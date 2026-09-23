@@ -33,7 +33,7 @@ const normalizeDateStr = (rawDate) => {
   return str;
 };
 
-// Flexible property extraction helper (supports camelCase, Title Case, lowercase, snake_case)
+// Flexible property extraction helper with smart offset correction
 const extractRecordFields = (rec) => {
   if (!rec || typeof rec !== 'object') return {};
 
@@ -46,14 +46,40 @@ const extractRecordFields = (rec) => {
     return '';
   };
 
-  const customerName = getProp('customerName', 'Customer Name', 'customer_name', 'name', 'clientName', 'Client Name');
-  const customerId = getProp('customerId', 'Customer ID', 'customer_id', 'id');
-  const createdBy = getProp('createdBy', 'Created By', 'created_by', 'loggedBy', 'Logged By', 'staffName', 'staff');
-  const businessName = getProp('businessName', 'Business Name', 'business_name', 'business');
-  const contactNumber = getProp('contactNumber', 'Contact Number', 'contact_number', 'phone', 'mobile');
-  const clientDailyReview = getProp('clientDailyReview', 'Client Daily Review', 'client_daily_review', 'review');
-  const feedback = getProp('feedback', 'Feedback');
-  const date = getProp('date', 'Date');
+  let customerName = getProp('customerName', 'Customer Name', 'customer_name', 'name', 'clientName', 'Client Name');
+  let customerId = getProp('customerId', 'Customer ID', 'customer_id', 'id');
+  let createdBy = getProp('createdBy', 'Created By', 'created_by', 'loggedBy', 'Logged By', 'staffName', 'staff');
+  let businessName = getProp('businessName', 'Business Name', 'business_name', 'business');
+  let contactNumber = getProp('contactNumber', 'Contact Number', 'contact_number', 'phone', 'mobile');
+  let clientDailyReview = getProp('clientDailyReview', 'Client Daily Review', 'client_daily_review', 'review', 'notes');
+  let feedback = getProp('feedback', 'Feedback');
+  let date = getProp('date', 'Date');
+
+  const isPhonePattern = (str) => /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,14}$/.test((str || '').toString().trim());
+  const hasLetters = (str) => /[a-zA-Z]/.test((str || '').toString().trim());
+
+  // SMART CORRECTION LOGIC:
+  // If contactNumber contains letters (e.g. "Flowtech solutions"), it is actually a Business Name!
+  if (hasLetters(contactNumber)) {
+    const textVal = contactNumber;
+    const phoneVal = isPhonePattern(businessName) ? businessName : '';
+    businessName = textVal;
+    contactNumber = phoneVal;
+  } else if (isPhonePattern(businessName) && !contactNumber) {
+    contactNumber = businessName;
+    businessName = '';
+  }
+
+  // Fallback: If contactNumber is still empty, search all properties in rec for a valid phone number
+  if (!contactNumber) {
+    for (const k of Object.keys(rec)) {
+      const val = (rec[k] || '').toString().trim();
+      if (isPhonePattern(val) && val !== customerId) {
+        contactNumber = val;
+        break;
+      }
+    }
+  }
 
   return {
     customerName,
@@ -153,6 +179,12 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
                 if (!existing.customerId && rec.customerId) existing.customerId = rec.customerId;
                 if (!existing.businessName && rec.businessName) existing.businessName = rec.businessName;
                 if (!existing.contactNumber && rec.contactNumber) existing.contactNumber = rec.contactNumber;
+
+                // Fix if existing entry had swapped text/phone
+                if (existing.contactNumber && /[a-zA-Z]/.test(existing.contactNumber)) {
+                  if (!existing.businessName) existing.businessName = existing.contactNumber;
+                  existing.contactNumber = rec.contactNumber || '';
+                }
               }
             }
 
@@ -369,9 +401,10 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
         createdBy: currentCreatedBy,
         customerId: submittedClientId,
         customerName: submittedClientName,
+        businessName: formData.businessName,
         contactNumber: formData.contactNumber,
-        clientDailyReview: formData.clientDailyReview,
         feedback: formData.feedback,
+        clientDailyReview: formData.clientDailyReview,
       }, () => {
         // Record completed review key for current date
         if (normCurrentDate) {

@@ -1,11 +1,11 @@
 /**
- * Google Apps Script Web App for Review & Feedback Sheet (7 Columns)
+ * Google Apps Script Web App for Review & Feedback Sheet (8 Columns)
  * 
  * Instructions:
- * 1. Create a NEW separate Google Sheet named "Client Review & Feedback Data".
- * 2. Set Row 1 headers (A1 to G1):
- *    Date | Created By | Customer ID | Customer Name | Contact Number | 
- *    Client Daily Review | Feedback
+ * 1. Open your Review Google Sheet titled "Review Data link".
+ * 2. Set Row 1 headers (A1 to H1):
+ *    Date | Created By | Customer ID | Customer Name | Business Name | 
+ *    Contact Number | Feedback | Client Daily Review
  * 3. Extensions -> Apps Script -> Paste this code -> Deploy as Web App (Access: Anyone).
  */
 
@@ -23,11 +23,12 @@ function doPost(e) {
         'Created By',
         'Customer ID',
         'Customer Name',
+        'Business Name',
         'Contact Number',
-        'Client Daily Review',
-        'Feedback'
+        'Feedback',
+        'Client Daily Review'
       ]);
-      sheet.getRange(1, 1, 1, 7).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#f1f5f9');
     }
 
     var data = {};
@@ -40,9 +41,10 @@ function doPost(e) {
       data.createdBy || '',
       data.customerId || '',
       data.customerName || '',
+      data.businessName || '',
       data.contactNumber || '',
-      data.clientDailyReview || '',
-      data.feedback || ''
+      data.feedback || '',
+      data.clientDailyReview || ''
     ];
 
     sheet.appendRow(rowData);
@@ -90,10 +92,10 @@ function doGet(e) {
     var createdByIdx = findIdx(['created by', 'logged by', 'staff', 'staff name'], 1);
     var customerIdIdx = findIdx(['customer id', 'client id', 'id'], 2);
     var customerNameIdx = findIdx(['customer name', 'client name', 'name'], 3);
-    var contactNumberIdx = findIdx(['contact number', 'phone number', 'phone', 'contact'], 4);
-    var reviewIdx = findIdx(['client daily review', 'daily review', 'review'], 5);
+    var businessNameIdx = findIdx(['business name', 'business'], 4);
+    var contactNumberIdx = findIdx(['contact number', 'phone number', 'phone', 'contact'], 5);
     var feedbackIdx = findIdx(['feedback'], 6);
-    var businessNameIdx = findIdx(['business name', 'business'], -1);
+    var reviewIdx = findIdx(['client daily review', 'daily review', 'review', 'notes'], 7);
 
     var records = [];
     var createdByMap = {};
@@ -107,8 +109,10 @@ function doGet(e) {
       };
 
       var createdBy = getStr(createdByIdx);
-      var customerName = getStr(customerNameIdx) || ('Client #' + i);
+      var customerName = getStr(customerNameIdx) || getStr(businessNameIdx) || ('Client #' + i);
       var customerId = getStr(customerIdIdx);
+      var businessName = getStr(businessNameIdx);
+      var contactNumber = getStr(contactNumberIdx);
 
       if (createdBy) createdByMap[createdBy] = true;
 
@@ -117,10 +121,10 @@ function doGet(e) {
         createdBy: createdBy,
         customerId: customerId,
         customerName: customerName,
-        businessName: getStr(businessNameIdx),
-        contactNumber: getStr(contactNumberIdx),
-        clientDailyReview: getStr(reviewIdx),
-        feedback: getStr(feedbackIdx)
+        businessName: businessName,
+        contactNumber: contactNumber,
+        feedback: getStr(feedbackIdx),
+        clientDailyReview: getStr(reviewIdx)
       });
     }
 
