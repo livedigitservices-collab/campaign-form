@@ -20,16 +20,65 @@ import FormInput from './FormInput';
 import SubmitButton from './SubmitButton';
 import { fetchSheetData } from '../services/googleSheets';
 
-// Helper to normalize date strings to YYYY-MM-DD
+// Helper to normalize date strings to YYYY-MM-DD format (for HTML5 <input type="date">)
 const normalizeDateStr = (rawDate) => {
   if (!rawDate) return '';
   const str = rawDate.toString().trim();
   if (!str) return '';
   if (/^\d{4}-\d{2}-\d{2}/.test(str)) return str.substring(0, 10);
+
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${year}-${month}-${day}`;
+  }
+
   try {
     const d = new Date(str);
-    if (!isNaN(d.getTime())) return d.toISOString().split('T')[0];
+    if (!isNaN(d.getTime())) {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
   } catch (e) {}
+  return str;
+};
+
+// Formats any date string into DD/MM/YYYY (Day/Month/Year format)
+const formatToDMY = (rawDate) => {
+  if (!rawDate) return '';
+  const str = rawDate.toString().trim();
+  if (!str) return '';
+
+  const ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymdMatch) {
+    const year = ymdMatch[1];
+    const month = ymdMatch[2].padStart(2, '0');
+    const day = ymdMatch[3].padStart(2, '0');
+    return `${day}/${month}/${year}`;
+  }
+
+  const dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    const day = dmyMatch[1].padStart(2, '0');
+    const month = dmyMatch[2].padStart(2, '0');
+    const year = dmyMatch[3];
+    return `${day}/${month}/${year}`;
+  }
+
+  try {
+    const d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      const dd = String(d.getDate()).padStart(2, '0');
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const yyyy = d.getFullYear();
+      return `${dd}/${mm}/${yyyy}`;
+    }
+  } catch (e) {}
+
   return str;
 };
 
@@ -53,7 +102,8 @@ const extractRecordFields = (rec) => {
   let contactNumber = getProp('contactNumber', 'Contact Number', 'contact_number', 'phone', 'mobile');
   let clientDailyReview = getProp('clientDailyReview', 'Client Daily Review', 'client_daily_review', 'review', 'notes');
   let feedback = getProp('feedback', 'Feedback');
-  let date = getProp('date', 'Date');
+  let createdDate = getProp('createdDate', 'Created Date', 'creationDate', 'Creation Date', 'date', 'Date');
+  let reviewDate = getProp('reviewDate', 'Review Date', 'review_date');
 
   const isPhonePattern = (str) => /^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,14}$/.test((str || '').toString().trim());
   const hasLetters = (str) => /[a-zA-Z]/.test((str || '').toString().trim());
@@ -89,12 +139,16 @@ const extractRecordFields = (rec) => {
     contactNumber,
     clientDailyReview,
     feedback,
-    date
+    createdDate: createdDate || getProp('date', 'Date'),
+    reviewDate: reviewDate || createdDate || getProp('date', 'Date'),
+    date: createdDate || getProp('date', 'Date')
   };
 };
 
 const getInitialFormData = () => ({
   date: new Date().toISOString().split('T')[0],
+  reviewDate: new Date().toISOString().split('T')[0],
+  createdDate: '',
   createdBy: '',
   customerId: '',
   customerName: '',
@@ -172,6 +226,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
                   customerId: rec.customerId,
                   businessName: rec.businessName,
                   contactNumber: rec.contactNumber,
+                  createdDate: rec.createdDate || rec.date || '',
                 });
               } else {
                 const existing = mergedRecordsMap.get(recordKey);
@@ -179,6 +234,9 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
                 if (!existing.customerId && rec.customerId) existing.customerId = rec.customerId;
                 if (!existing.businessName && rec.businessName) existing.businessName = rec.businessName;
                 if (!existing.contactNumber && rec.contactNumber) existing.contactNumber = rec.contactNumber;
+                if (!existing.createdDate && (rec.createdDate || rec.date)) {
+                  existing.createdDate = rec.createdDate || rec.date;
+                }
 
                 // Fix if existing entry had swapped text/phone
                 if (existing.contactNumber && /[a-zA-Z]/.test(existing.contactNumber)) {
@@ -190,7 +248,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
 
             // Extract completed reviews for specific dates from Review Sheet
             if (item.name === 'Review Sheet' && (rec.clientDailyReview || rec.feedback)) {
-              const normDate = normalizeDateStr(rec.date);
+              const normDate = normalizeDateStr(rec.reviewDate || rec.date);
               if (normDate) {
                 if (nameKey) existingCompletedSet.add(`${nameKey}_${normDate}`);
                 if (idKey) existingCompletedSet.add(`${idKey}_${normDate}`);
@@ -277,6 +335,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
       customerId: '',
       businessName: '',
       contactNumber: '',
+      createdDate: '',
       clientDailyReview: '',
       feedback: '',
     }));
@@ -296,6 +355,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           customerId: matched.customerId || '',
           businessName: matched.businessName || '',
           contactNumber: matched.contactNumber || '',
+          createdDate: matched.createdDate || prev.createdDate || '',
           clientDailyReview: '',
           feedback: '',
         }));
@@ -309,6 +369,7 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
         customerId: '',
         businessName: '',
         contactNumber: '',
+        createdDate: '',
         clientDailyReview: '',
         feedback: '',
       }));
@@ -393,11 +454,14 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
       const submittedClientName = formData.customerName;
       const submittedClientId = formData.customerId;
       const currentCreatedBy = formData.createdBy;
-      const currentDate = formData.date;
-      const normCurrentDate = normalizeDateStr(currentDate);
+      const currentReviewDate = formData.date || formData.reviewDate || new Date().toISOString().split('T')[0];
+      const currentCreatedDate = formData.createdDate || currentReviewDate;
+      const normCurrentDate = normalizeDateStr(currentReviewDate);
 
       onSubmit({
-        date: currentDate,
+        createdDate: currentCreatedDate,
+        date: currentCreatedDate,
+        reviewDate: currentReviewDate,
         createdBy: currentCreatedBy,
         customerId: submittedClientId,
         customerName: submittedClientName,
@@ -418,15 +482,17 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           }
         }
 
-        // Clear client fields, keeping selected Staff Member & Date for next client review
+        // Clear client fields, keeping selected Staff Member & Review Date for next client review
         setFormData((prev) => ({
           ...prev,
-          date: currentDate,
+          date: currentReviewDate,
+          reviewDate: currentReviewDate,
           createdBy: currentCreatedBy,
           customerId: '',
           customerName: '',
           businessName: '',
           contactNumber: '',
+          createdDate: '',
           clientDailyReview: '',
           feedback: '',
         }));
@@ -609,17 +675,31 @@ export default function DailyReviewForm({ onSubmit, isSubmitting, isUrlConfigure
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            {/* Review Date */}
+            {/* Review Date (Updates on review entry) */}
             <FormInput
               id="date"
               name="date"
-              label="Review Date"
+              label="Review Date *"
               type="date"
               required={true}
               value={formData.date}
               onChange={handleChange}
               icon={Calendar}
+              helperText="Date of daily review & feedback entry"
               error={touched.date ? errors.date : ''}
+            />
+
+            {/* Created Date (Unchanged initial addition date) */}
+            <FormInput
+              id="createdDate"
+              name="createdDate"
+              label="Created Date (Client Added)"
+              type="text"
+              value={formData.createdDate ? formatToDMY(formData.createdDate) : 'Auto-filled when client selected'}
+              onChange={() => {}}
+              icon={Clock}
+              readOnly={true}
+              helperText="Initial client addition date (remains unchanged)"
             />
 
             {/* Created By Dropdown (Staff Member) */}

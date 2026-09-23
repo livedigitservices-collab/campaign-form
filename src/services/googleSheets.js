@@ -42,9 +42,12 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
         };
       }
     } else {
+      const statusText = response.status === 404 
+        ? 'Google Apps Script URL returned 404 Not Found. Please re-deploy your Apps Script as a Web App (Access: Anyone) and update your Web App URL.'
+        : `Server returned status: ${response.status}`;
       return {
         success: false,
-        message: 'Unable to submit the details. Server returned status: ' + response.status,
+        message: 'Unable to submit details: ' + statusText,
       };
     }
   } catch (error) {
@@ -65,7 +68,7 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
       };
     } catch (fallbackError) {
       console.error('Fallback submission error:', fallbackError);
-      throw new Error('Unable to submit the details. Please try again.');
+      throw new Error('Unable to submit details. Web App URL returned 404 or network error.');
     }
   }
 }
@@ -109,7 +112,12 @@ export async function fetchSheetData(webAppUrl) {
         return { success: false, createdByList: [], records: [], error: data.message || 'Script error' };
       }
     }
-    return { success: false, createdByList: [], records: [], error: `Server returned status ${response.status}` };
+    
+    const errorMsg = response.status === 404
+      ? 'Google Apps Script URL returned 404 Not Found. Please re-deploy your Web App (Access: Anyone) and update the URL in settings.'
+      : `Server returned status ${response.status}`;
+
+    return { success: false, createdByList: [], records: [], error: errorMsg };
   } catch (err) {
     console.error('Error fetching sheet data:', err);
     return { success: false, createdByList: [], records: [], error: err.message || 'Network error' };
