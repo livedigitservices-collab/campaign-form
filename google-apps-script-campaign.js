@@ -1,14 +1,54 @@
 /**
- * Google Apps Script Web App for Campaign Form Sheet (11 Columns)
+ * Google Apps Script Web App for Campaign Form Sheet (10 Columns)
  * 
  * Instructions:
  * 1. Open your Campaign Google Sheet.
- * 2. Set Row 1 headers (A1 to K1):
+ * 2. Set Row 1 headers (A1 to J1):
  *    Date | Created By | Customer ID | Customer Name | Business Name | 
- *    Contact Number | Plan Amount Per Day | No. of Days | Total Amount | 
- *    Ads Locations | Business WhatsApp Number
+ *    Contact Number | Business Location | Do you have a website? | 
+ *    Have you run digital marketing ads before? | What are your current marketing requirements?
  * 3. Extensions -> Apps Script -> Paste this code -> Deploy as Web App (Access: Anyone).
  */
+
+function formatDateClean(rawDate) {
+  var now = new Date();
+  var defaultDD = ('0' + now.getDate()).slice(-2);
+  var defaultMM = ('0' + (now.getMonth() + 1)).slice(-2);
+  var defaultYYYY = now.getFullYear();
+  var defaultDateStr = defaultDD + '/' + defaultMM + '/' + defaultYYYY;
+
+  if (!rawDate) return defaultDateStr;
+  var str = rawDate.toString().trim();
+  if (!str) return defaultDateStr;
+
+  var ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymdMatch) {
+    var year = ymdMatch[1];
+    var month = ('0' + ymdMatch[2]).slice(-2);
+    var day = ('0' + ymdMatch[3]).slice(-2);
+    return day + '/' + month + '/' + year;
+  }
+
+  var dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    var day2 = ('0' + dmyMatch[1]).slice(-2);
+    var month2 = ('0' + dmyMatch[2]).slice(-2);
+    var year2 = dmyMatch[3];
+    return day2 + '/' + month2 + '/' + year2;
+  }
+
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      var yyyy = d.getFullYear();
+      var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+      var dd = ('0' + d.getDate()).slice(-2);
+      return dd + '/' + mm + '/' + yyyy;
+    }
+  } catch (e) {}
+
+  return str;
+}
 
 function doPost(e) {
   try {
@@ -25,13 +65,12 @@ function doPost(e) {
         'Customer Name',
         'Business Name',
         'Contact Number',
-        'Plan Amount Per Day',
-        'No. of Days',
-        'Total Amount',
-        'Ads Locations',
-        'Business WhatsApp Number'
+        'Business Location',
+        'Do you have a website?',
+        'Have you run digital marketing ads before?',
+        'What are your current marketing requirements?'
       ]);
-      sheet.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#f1f5f9');
     }
 
     var data = {};
@@ -59,21 +98,20 @@ function doPost(e) {
 
     var customerId = (data.customerId || '').toString().trim();
     if (!customerId || existingIdMap[customerId.toLowerCase()]) {
-      customerId = 'LD' + ('0000' + (maxIdNum + 1)).slice(-4);
+      customerId = 'ADB' + ('0000' + (maxIdNum + 1)).slice(-4);
     }
 
     var rowData = [
-      data.date || new Date().toISOString().split('T')[0],
+      formatDateClean(data.date || new Date().toISOString().split('T')[0]),
       data.createdBy || '',
       customerId,
       data.customerName || '',
       data.businessName || '',
       data.contactNumber || '',
-      data.planAmountPerDay ? Number(data.planAmountPerDay) : '',
-      data.numberOfDays ? Number(data.numberOfDays) : '',
-      data.totalAmount ? Number(data.totalAmount) : '',
-      data.adsLocations || '',
-      data.businessWhatsAppNumber || ''
+      data.businessLocation || '',
+      data.hasWebsite || '',
+      data.hasRunAdsBefore || '',
+      data.marketingRequirements || ''
     ];
 
     sheet.appendRow(rowData);
@@ -108,17 +146,16 @@ function doGet(e) {
       return defaultIdx;
     };
 
-    var dateIdx = findIdx(['date'], 0);
+    var dateIdx = findIdx(['date', 'created date'], 0);
     var createdByIdx = findIdx(['created by', 'logged by', 'staff', 'staff name'], 1);
     var customerIdIdx = findIdx(['customer id', 'client id', 'id'], 2);
     var customerNameIdx = findIdx(['customer name', 'client name', 'name'], 3);
     var businessNameIdx = findIdx(['business name', 'business'], 4);
     var contactNumberIdx = findIdx(['contact number', 'phone number', 'phone', 'contact'], 5);
-    var planAmountIdx = findIdx(['plan amount per day', 'plan amount'], 6);
-    var noDaysIdx = findIdx(['no. of days', 'number of days', 'days'], 7);
-    var totalAmountIdx = findIdx(['total amount'], 8);
-    var adsLocationsIdx = findIdx(['ads locations', 'locations'], 9);
-    var whatsAppIdx = findIdx(['business whatsapp number', 'whatsapp'], 10);
+    var businessLocationIdx = findIdx(['business location', 'location', 'city'], 6);
+    var hasWebsiteIdx = findIdx(['do you have a website?', 'website', 'has website'], 7);
+    var hasRunAdsBeforeIdx = findIdx(['have you run digital marketing ads before?', 'ads before', 'run ads'], 8);
+    var marketingRequirementsIdx = findIdx(['what are your current marketing requirements?', 'marketing requirements', 'requirements'], 9);
 
     var records = [];
     var createdByMap = {};
@@ -137,17 +174,16 @@ function doGet(e) {
       if (createdBy) createdByMap[createdBy] = true;
 
       records.push({
-        date: getStr(dateIdx) || new Date().toISOString().split('T')[0],
+        date: formatDateClean(getStr(dateIdx)),
         createdBy: createdBy,
-        customerId: getStr(customerIdIdx) || ('LD' + ('0000' + i).slice(-4)),
+        customerId: getStr(customerIdIdx) || ('ADB' + ('0000' + i).slice(-4)),
         customerName: customerName,
         businessName: getStr(businessNameIdx),
         contactNumber: getStr(contactNumberIdx),
-        planAmountPerDay: getStr(planAmountIdx),
-        numberOfDays: getStr(noDaysIdx),
-        totalAmount: getStr(totalAmountIdx),
-        adsLocations: getStr(adsLocationsIdx),
-        businessWhatsAppNumber: getStr(whatsAppIdx)
+        businessLocation: getStr(businessLocationIdx),
+        hasWebsite: getStr(hasWebsiteIdx),
+        hasRunAdsBefore: getStr(hasRunAdsBeforeIdx),
+        marketingRequirements: getStr(marketingRequirementsIdx)
       });
     }
 

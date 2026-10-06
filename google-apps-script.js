@@ -1,17 +1,56 @@
 /**
- * Google Apps Script Web App for Campaign Details Form
+ * Google Apps Script Web App for Campaign Details Form (10 Columns)
  * 
  * Includes Strict Server-Side Customer ID Uniqueness Protection
  */
 
+function formatDateClean(rawDate) {
+  var now = new Date();
+  var defaultDD = ('0' + now.getDate()).slice(-2);
+  var defaultMM = ('0' + (now.getMonth() + 1)).slice(-2);
+  var defaultYYYY = now.getFullYear();
+  var defaultDateStr = defaultDD + '/' + defaultMM + '/' + defaultYYYY;
+
+  if (!rawDate) return defaultDateStr;
+  var str = rawDate.toString().trim();
+  if (!str) return defaultDateStr;
+
+  var ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
+  if (ymdMatch) {
+    var year = ymdMatch[1];
+    var month = ('0' + ymdMatch[2]).slice(-2);
+    var day = ('0' + ymdMatch[3]).slice(-2);
+    return day + '/' + month + '/' + year;
+  }
+
+  var dmyMatch = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+  if (dmyMatch) {
+    var day2 = ('0' + dmyMatch[1]).slice(-2);
+    var month2 = ('0' + dmyMatch[2]).slice(-2);
+    var year2 = dmyMatch[3];
+    return day2 + '/' + month2 + '/' + year2;
+  }
+
+  try {
+    var d = new Date(str);
+    if (!isNaN(d.getTime())) {
+      var yyyy = d.getFullYear();
+      var mm = ('0' + (d.getMonth() + 1)).slice(-2);
+      var dd = ('0' + d.getDate()).slice(-2);
+      return dd + '/' + mm + '/' + yyyy;
+    }
+  } catch (e) {}
+
+  return str;
+}
+
 function doPost(e) {
   try {
     var lock = LockService.getScriptLock();
-    lock.tryLock(10000); // Concurrency lock to prevent write collisions
+    lock.tryLock(10000);
 
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
     
-    // Auto-initialize headers if opening a fresh blank sheet
     if (sheet.getLastRow() === 0) {
       sheet.appendRow([
         'Date',
@@ -20,13 +59,12 @@ function doPost(e) {
         'Customer Name',
         'Business Name',
         'Contact Number',
-        'Plan Amount Per Day',
-        'No. of Days',
-        'Total Amount',
-        'Ads Locations',
-        'Business WhatsApp Number'
+        'Business Location',
+        'Do you have a website?',
+        'Have you run digital marketing ads before?',
+        'What are your current marketing requirements?'
       ]);
-      sheet.getRange(1, 1, 1, 11).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#f1f5f9');
     }
 
     var data = {};
@@ -40,7 +78,6 @@ function doPost(e) {
       data = e.parameter;
     }
 
-    // Read all existing Customer IDs in Column C (index 2) to guarantee 100% uniqueness
     var values = sheet.getDataRange().getValues();
     var existingIdMap = {};
     var maxIdNum = 0;
@@ -61,27 +98,24 @@ function doPost(e) {
 
     var customerId = (data.customerId || '').toString().trim();
 
-    // If ID is missing OR if ID already exists in the sheet, assign next strictly unique ID!
     if (!customerId || existingIdMap[customerId.toLowerCase()]) {
-      customerId = 'LD' + ('0000' + (maxIdNum + 1)).slice(-4);
+      customerId = 'ADB' + ('0000' + (maxIdNum + 1)).slice(-4);
     }
 
     var rowData = [
-      data.date || new Date().toISOString().split('T')[0],
+      formatDateClean(data.date || new Date().toISOString().split('T')[0]),
       data.createdBy || '',
       customerId,
       data.customerName || '',
       data.businessName || '',
       data.contactNumber || '',
-      data.planAmountPerDay ? Number(data.planAmountPerDay) : '',
-      data.numberOfDays ? Number(data.numberOfDays) : '',
-      data.totalAmount ? Number(data.totalAmount) : '',
-      data.adsLocations || '',
-      data.businessWhatsAppNumber || ''
+      data.businessLocation || '',
+      data.hasWebsite || '',
+      data.hasRunAdsBefore || '',
+      data.marketingRequirements || ''
     ];
 
     sheet.appendRow(rowData);
-
     lock.releaseLock();
 
     return ContentService
@@ -98,7 +132,7 @@ function doPost(e) {
       .createTextOutput(JSON.stringify({ 
         status: 'error',
         result: 'error',
-        message: 'Unable to submit the details: ' + error.toString() 
+        message: 'Unable to submit details: ' + error.toString() 
       }))
       .setMimeType(ContentService.MimeType.JSON);
   }

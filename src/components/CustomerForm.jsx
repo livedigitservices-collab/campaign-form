@@ -5,21 +5,18 @@ import {
   Hash, 
   Building, 
   Phone, 
-  IndianRupee, 
-  Clock, 
-  Calculator, 
   MapPin, 
-  MessageSquare,
-  UserCheck,
-  Megaphone,
-  AlertCircle,
-  RefreshCw,
-  ShieldCheck
+  Globe, 
+  Megaphone, 
+  FileText, 
+  UserCheck, 
+  AlertCircle, 
+  RefreshCw 
 } from 'lucide-react';
 import FormInput from './FormInput';
 import SubmitButton from './SubmitButton';
 
-// Utility to generate unique Customer ID like LD0001
+// Utility to generate unique Customer ID like ADB0001
 const generateNextCustomerId = () => {
   const currentCount = parseInt(localStorage.getItem('customer_id_counter') || '1', 10);
   const formattedNumber = String(currentCount).padStart(4, '0');
@@ -38,11 +35,10 @@ const getInitialFormData = () => ({
   customerName: '',
   businessName: '',
   contactNumber: '',
-  planAmountPerDay: '',
-  numberOfDays: '',
-  totalAmount: '',
-  adsLocations: '',
-  businessWhatsAppNumber: '',
+  businessLocation: '',
+  hasWebsite: '',
+  hasRunAdsBefore: '',
+  marketingRequirements: '',
 });
 
 export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, onOpenSettings }) {
@@ -70,22 +66,10 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
 
     if (!strVal) return '';
 
-    switch (name) {
-      case 'contactNumber':
-      case 'businessWhatsAppNumber':
-        if (!/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,14}$/.test(strVal)) {
-          error = 'Enter a valid phone number';
-        }
-        break;
-      case 'planAmountPerDay':
-      case 'numberOfDays':
-      case 'totalAmount':
-        if (isNaN(Number(strVal)) || Number(strVal) < 0) {
-          error = 'Must be a valid non-negative number';
-        }
-        break;
-      default:
-        break;
+    if (name === 'contactNumber') {
+      if (!/^[+]?[(]?[0-9]{1,4}[)]?[-\s./0-9]{6,14}$/.test(strVal)) {
+        error = 'Enter a valid phone number';
+      }
     }
 
     return error;
@@ -208,11 +192,11 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
               <FormInput
                 id="customerId"
                 name="customerId"
-                placeholder="e.g. LD0001"
+                placeholder="e.g. ADB0001"
                 value={formData.customerId}
                 onChange={handleChange}
                 icon={Hash}
-                helperText="Guaranteed unique ID automatically assigned (e.g. LD0001)"
+                helperText="Guaranteed unique ID automatically assigned (e.g. ADB0001)"
                 error={touched.customerId ? errors.customerId : ''}
               />
             </div>
@@ -254,87 +238,74 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
           </div>
         </section>
 
-        {/* Campaign Details Section */}
+        {/* Campaign & Marketing Details Section */}
         <section className="space-y-4">
           <div className="flex items-center space-x-2.5 pb-2 border-b border-slate-100">
             <div className="p-2 rounded-lg bg-indigo-50 text-indigo-600">
               <Megaphone className="w-4 h-4" />
             </div>
             <h2 className="text-base font-bold text-slate-900 tracking-tight">
-              Campaign Details
+              Campaign & Marketing Details
             </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-5">
-            {/* Row 1: Plan Amount Per Day & Number of Days */}
+            {/* Row 1: Business Location & Website Dropdown */}
             <FormInput
-              id="planAmountPerDay"
-              name="planAmountPerDay"
-              label="Plan Amount Per Day"
-              type="number"
-              min="0"
-              step="any"
-              placeholder="e.g. 500"
-              value={formData.planAmountPerDay}
-              onChange={handleChange}
-              icon={IndianRupee}
-              error={touched.planAmountPerDay ? errors.planAmountPerDay : ''}
-            />
-
-            <FormInput
-              id="numberOfDays"
-              name="numberOfDays"
-              label="Number of Days"
-              type="number"
-              min="0"
-              step="1"
-              placeholder="e.g. 10"
-              value={formData.numberOfDays}
-              onChange={handleChange}
-              icon={Clock}
-              error={touched.numberOfDays ? errors.numberOfDays : ''}
-            />
-
-            {/* Row 2: Total Amount & Ads Locations */}
-            <FormInput
-              id="totalAmount"
-              name="totalAmount"
-              label="Total Amount"
-              type="number"
-              min="0"
-              step="any"
-              placeholder="e.g. 5000"
-              value={formData.totalAmount}
-              onChange={handleChange}
-              icon={Calculator}
-              error={touched.totalAmount ? errors.totalAmount : ''}
-            />
-
-            <FormInput
-              id="adsLocations"
-              name="adsLocations"
-              label="Ads Locations"
-              placeholder="e.g. Mumbai, Delhi NCR, Bangalore"
-              value={formData.adsLocations}
+              id="businessLocation"
+              name="businessLocation"
+              label="Business Location"
+              placeholder="e.g. Hyderabad, Telangana"
+              value={formData.businessLocation}
               onChange={handleChange}
               icon={MapPin}
-              error={touched.adsLocations ? errors.adsLocations : ''}
+              error={touched.businessLocation ? errors.businessLocation : ''}
             />
 
-            {/* Row 3: Business WhatsApp Number */}
-            <div className="sm:col-span-2">
-              <FormInput
-                id="businessWhatsAppNumber"
-                name="businessWhatsAppNumber"
-                label="Business WhatsApp Number"
-                type="tel"
-                placeholder="e.g. 9876543210"
-                value={formData.businessWhatsAppNumber}
-                onChange={handleChange}
-                icon={MessageSquare}
-                error={touched.businessWhatsAppNumber ? errors.businessWhatsAppNumber : ''}
-              />
-            </div>
+            <FormInput
+              id="hasWebsite"
+              name="hasWebsite"
+              label="Do you have a website?"
+              type="select"
+              value={formData.hasWebsite}
+              onChange={handleChange}
+              icon={Globe}
+              placeholder="-- Select Option --"
+              options={[
+                { value: 'Yes', label: 'Yes' },
+                { value: 'No', label: 'No' },
+              ]}
+              error={touched.hasWebsite ? errors.hasWebsite : ''}
+            />
+
+            {/* Row 2: Digital Marketing Ads Before Dropdown */}
+            <FormInput
+              id="hasRunAdsBefore"
+              name="hasRunAdsBefore"
+              label="Have you run digital marketing ads before?"
+              type="select"
+              value={formData.hasRunAdsBefore}
+              onChange={handleChange}
+              icon={Megaphone}
+              placeholder="-- Select Option --"
+              options={[
+                { value: 'Yes', label: 'Yes' },
+                { value: 'No', label: 'No' },
+              ]}
+              error={touched.hasRunAdsBefore ? errors.hasRunAdsBefore : ''}
+            />
+
+            {/* Row 2: Marketing Requirements */}
+            <FormInput
+              id="marketingRequirements"
+              name="marketingRequirements"
+              label="What are your current marketing requirements?"
+              placeholder="e.g. Lead generation, social media ads, brand awareness..."
+              value={formData.marketingRequirements}
+              onChange={handleChange}
+              icon={FileText}
+              error={touched.marketingRequirements ? errors.marketingRequirements : ''}
+            />
           </div>
         </section>
 
