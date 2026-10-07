@@ -44,6 +44,8 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
     } else {
       const statusText = response.status === 404 
         ? 'Google Apps Script URL returned 404 Not Found. Please re-deploy your Apps Script as a Web App (Access: Anyone) and update your Web App URL.'
+        : response.status === 401
+        ? 'Google Apps Script returned 401 Unauthorized. Please set "Who has access" to "Anyone" in Apps Script deployment settings.'
         : `Server returned status: ${response.status}`;
       return {
         success: false,
@@ -68,7 +70,7 @@ export async function submitToGoogleSheets(webAppUrl, formData) {
       };
     } catch (fallbackError) {
       console.error('Fallback submission error:', fallbackError);
-      throw new Error('Unable to submit details. Web App URL returned 404 or network error.');
+      throw new Error('Access Blocked (CORS / 401 / 404). In Google Apps Script, edit your Web App deployment, set "Who has access" to "Anyone", select "New version", and re-deploy.');
     }
   }
 }
@@ -115,11 +117,18 @@ export async function fetchSheetData(webAppUrl) {
     
     const errorMsg = response.status === 404
       ? 'Google Apps Script URL returned 404 Not Found. Please re-deploy your Web App (Access: Anyone) and update the URL in settings.'
+      : response.status === 401
+      ? 'Google Apps Script returned 401 Unauthorized. Set "Who has access" to "Anyone" in Apps Script deployment settings.'
       : `Server returned status ${response.status}`;
 
     return { success: false, createdByList: [], records: [], error: errorMsg };
   } catch (err) {
     console.error('Error fetching sheet data:', err);
-    return { success: false, createdByList: [], records: [], error: err.message || 'Network error' };
+    return { 
+      success: false, 
+      createdByList: [], 
+      records: [], 
+      error: 'Access Blocked (CORS / 401). Set "Who has access" to "Anyone" in Google Apps Script deployment settings.' 
+    };
   }
 }
