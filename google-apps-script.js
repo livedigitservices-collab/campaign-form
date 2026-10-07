@@ -1,19 +1,12 @@
 /**
- * Google Apps Script Web App for Campaign Details Form (10 Columns)
+ * Google Apps Script Web App for Campaign Details Form (12 Columns)
  * 
  * Includes Strict Server-Side Customer ID Uniqueness Protection
  */
 
 function formatDateClean(rawDate) {
-  var now = new Date();
-  var defaultDD = ('0' + now.getDate()).slice(-2);
-  var defaultMM = ('0' + (now.getMonth() + 1)).slice(-2);
-  var defaultYYYY = now.getFullYear();
-  var defaultDateStr = defaultDD + '/' + defaultMM + '/' + defaultYYYY;
-
-  if (!rawDate) return defaultDateStr;
+  if (!rawDate || !rawDate.toString().trim()) return '';
   var str = rawDate.toString().trim();
-  if (!str) return defaultDateStr;
 
   var ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
   if (ymdMatch) {
@@ -62,9 +55,11 @@ function doPost(e) {
         'Business Location',
         'Do you have a website?',
         'Have you run digital marketing ads before?',
-        'What are your current marketing requirements?'
+        'What are your current marketing requirements?',
+        'Follow-up Date',
+        'Remarks'
       ]);
-      sheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#f1f5f9');
     }
 
     var data = {};
@@ -102,8 +97,10 @@ function doPost(e) {
       customerId = 'ADB' + ('0000' + (maxIdNum + 1)).slice(-4);
     }
 
+    var entryDate = data.date || new Date().toISOString().split('T')[0];
+
     var rowData = [
-      formatDateClean(data.date || new Date().toISOString().split('T')[0]),
+      formatDateClean(entryDate),
       data.createdBy || '',
       customerId,
       data.customerName || '',
@@ -112,7 +109,9 @@ function doPost(e) {
       data.businessLocation || '',
       data.hasWebsite || '',
       data.hasRunAdsBefore || '',
-      data.marketingRequirements || ''
+      data.marketingRequirements || '',
+      formatDateClean(data.followUpDate || ''),
+      data.remarks || ''
     ];
 
     sheet.appendRow(rowData);

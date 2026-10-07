@@ -1,25 +1,19 @@
 /**
- * Google Apps Script Web App for Campaign Form Sheet (10 Columns)
+ * Google Apps Script Web App for Campaign Form Sheet (12 Columns)
  * 
  * Instructions:
  * 1. Open your Campaign Google Sheet.
- * 2. Set Row 1 headers (A1 to J1):
+ * 2. Set Row 1 headers (A1 to L1):
  *    Date | Created By | Customer ID | Customer Name | Business Name | 
  *    Contact Number | Business Location | Do you have a website? | 
- *    Have you run digital marketing ads before? | What are your current marketing requirements?
+ *    Have you run digital marketing ads before? | What are your current marketing requirements? |
+ *    Follow-up Date | Remarks
  * 3. Extensions -> Apps Script -> Paste this code -> Deploy as Web App (Access: Anyone).
  */
 
 function formatDateClean(rawDate) {
-  var now = new Date();
-  var defaultDD = ('0' + now.getDate()).slice(-2);
-  var defaultMM = ('0' + (now.getMonth() + 1)).slice(-2);
-  var defaultYYYY = now.getFullYear();
-  var defaultDateStr = defaultDD + '/' + defaultMM + '/' + defaultYYYY;
-
-  if (!rawDate) return defaultDateStr;
+  if (!rawDate || !rawDate.toString().trim()) return '';
   var str = rawDate.toString().trim();
-  if (!str) return defaultDateStr;
 
   var ymdMatch = str.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})/);
   if (ymdMatch) {
@@ -68,9 +62,11 @@ function doPost(e) {
         'Business Location',
         'Do you have a website?',
         'Have you run digital marketing ads before?',
-        'What are your current marketing requirements?'
+        'What are your current marketing requirements?',
+        'Follow-up Date',
+        'Remarks'
       ]);
-      sheet.getRange(1, 1, 1, 10).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.getRange(1, 1, 1, 12).setFontWeight('bold').setBackground('#f1f5f9');
     }
 
     var data = {};
@@ -101,8 +97,10 @@ function doPost(e) {
       customerId = 'ADB' + ('0000' + (maxIdNum + 1)).slice(-4);
     }
 
+    var entryDate = data.date || new Date().toISOString().split('T')[0];
+
     var rowData = [
-      formatDateClean(data.date || new Date().toISOString().split('T')[0]),
+      formatDateClean(entryDate),
       data.createdBy || '',
       customerId,
       data.customerName || '',
@@ -111,7 +109,9 @@ function doPost(e) {
       data.businessLocation || '',
       data.hasWebsite || '',
       data.hasRunAdsBefore || '',
-      data.marketingRequirements || ''
+      data.marketingRequirements || '',
+      formatDateClean(data.followUpDate || ''),
+      data.remarks || ''
     ];
 
     sheet.appendRow(rowData);
@@ -156,6 +156,8 @@ function doGet(e) {
     var hasWebsiteIdx = findIdx(['do you have a website?', 'website', 'has website'], 7);
     var hasRunAdsBeforeIdx = findIdx(['have you run digital marketing ads before?', 'ads before', 'run ads'], 8);
     var marketingRequirementsIdx = findIdx(['what are your current marketing requirements?', 'marketing requirements', 'requirements'], 9);
+    var followUpDateIdx = findIdx(['follow-up date', 'followup date', 'follow up date'], 10);
+    var remarksIdx = findIdx(['remarks', 'notes', 'comments'], 11);
 
     var records = [];
     var createdByMap = {};
@@ -183,7 +185,9 @@ function doGet(e) {
         businessLocation: getStr(businessLocationIdx),
         hasWebsite: getStr(hasWebsiteIdx),
         hasRunAdsBefore: getStr(hasRunAdsBeforeIdx),
-        marketingRequirements: getStr(marketingRequirementsIdx)
+        marketingRequirements: getStr(marketingRequirementsIdx),
+        followUpDate: formatDateClean(getStr(followUpDateIdx)),
+        remarks: getStr(remarksIdx)
       });
     }
 

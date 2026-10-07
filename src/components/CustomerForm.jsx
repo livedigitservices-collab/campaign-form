@@ -11,7 +11,9 @@ import {
   FileText, 
   UserCheck, 
   AlertCircle, 
-  RefreshCw 
+  RefreshCw,
+  Clock,
+  MessageSquare
 } from 'lucide-react';
 import FormInput from './FormInput';
 import SubmitButton from './SubmitButton';
@@ -39,6 +41,8 @@ const getInitialFormData = () => ({
   hasWebsite: '',
   hasRunAdsBefore: '',
   marketingRequirements: '',
+  followUpDate: '',
+  remarks: '',
 });
 
 export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, onOpenSettings }) {
@@ -278,7 +282,7 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
               error={touched.hasWebsite ? errors.hasWebsite : ''}
             />
 
-            {/* Row 2: Digital Marketing Ads Before Dropdown */}
+            {/* Row 2: Digital Marketing Ads Before Dropdown & Marketing Requirements */}
             <FormInput
               id="hasRunAdsBefore"
               name="hasRunAdsBefore"
@@ -295,7 +299,6 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
               error={touched.hasRunAdsBefore ? errors.hasRunAdsBefore : ''}
             />
 
-            {/* Row 2: Marketing Requirements */}
             <FormInput
               id="marketingRequirements"
               name="marketingRequirements"
@@ -305,6 +308,31 @@ export default function CustomerForm({ onSubmit, isSubmitting, isUrlConfigured, 
               onChange={handleChange}
               icon={FileText}
               error={touched.marketingRequirements ? errors.marketingRequirements : ''}
+            />
+
+            {/* Row 3: Follow-up Date & Remarks */}
+            <FormInput
+              id="followUpDate"
+              name="followUpDate"
+              label="Follow-up Date"
+              type="date"
+              value={formData.followUpDate}
+              onChange={handleChange}
+              icon={Clock}
+              helperText="Select date for next follow-up"
+              error={touched.followUpDate ? errors.followUpDate : ''}
+            />
+
+            <FormInput
+              id="remarks"
+              name="remarks"
+              label="Remarks"
+              placeholder="e.g. Client requested callback next Monday..."
+              value={formData.remarks}
+              onChange={handleChange}
+              icon={MessageSquare}
+              helperText="Additional notes or comments"
+              error={touched.remarks ? errors.remarks : ''}
             />
           </div>
         </section>
